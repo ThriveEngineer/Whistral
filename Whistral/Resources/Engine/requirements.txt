@@ -1,0 +1,6 @@
+# Whistral speech engine dependencies.
+# The engine script wraps voxmlx (MLX port of Voxtral Mini 4B Realtime):
+# https://github.com/awni/voxmlx
+voxmlx>=0.0.2
+mistral-common[audio]>=1.9.0
+huggingface-hub>=0.30.0

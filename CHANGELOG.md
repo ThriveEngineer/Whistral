@@ -47,6 +47,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in other apps and breaking ⌘Space (Spotlight) while Whistral ran. Key-up
   events are now consumed only when the hotkey was actually armed by a
   matched key-down, and a stalled tap recovers itself after one second.
+- **The menu bar icon never appeared.** In the SwiftUI app lifecycle the
+  app's `delegate` is a SwiftUI proxy, so the status-item installer's cast
+  to the app's AppDelegate failed silently and the icon (the app's only
+  mouse-accessible surface) was never created. The installer now receives
+  the AppDelegate directly instead of digging it out of `NSApp.delegate`.
 
 ## [0.1.0] — first release
 

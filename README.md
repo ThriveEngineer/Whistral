@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/branding/logo-mark-dark-256.png" width="96" alt="Whistral app icon: a white microphone with whistle arcs on a warm bronze sweep, in the system squircle.">
-    <img src="docs/branding/logo-mark-256.png" width="96" alt="Whistral app icon: a white microphone with whistle arcs on a warm orange sweep, in the system squircle.">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/branding/logo-mark-dark-256.png" width="96" alt="Whistral app icon: a flat seven-bar waveform in amber, orange, and red on a dark background, in the system squircle.">
+    <img src="docs/branding/logo-mark-256.png" width="96" alt="Whistral app icon: a flat seven-bar waveform in amber, orange, and red on a dark background, in the system squircle.">
   </picture>
 </p>
 
@@ -107,10 +107,12 @@ model loads in about 1 s once cached — a first-ever launch downloads the
   behavior, privacy and permission flow, onboarding, and accessibility —
   per [HIG](https://developer.apple.com/design/human-interface-guidelines/).
 - The app icon (also used as the logo mark above) is authored as an
-  Icon Composer `.icon` document with light, dark, and tinted variants; the
-  rounded **system squircle** silhouette, corner rounding, and drop shadow
-  you see are applied by macOS itself — the source layers are full-bleed
-  squares.
+  Icon Composer `.icon` document with light, dark, and tinted variants — in
+  light and dark appearance it is a flat seven-bar waveform (amber → red) on
+  a dark background, and the tinted variant renders the bars as monochrome
+  glyphs; the rounded **system squircle** silhouette, corner rounding, and
+  drop shadow you see are applied by macOS itself — the source layers are
+  full-bleed squares.
 
 ## License
 

@@ -18,8 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   startup at first launch, which could fail under the sandboxed Python stub.
 - The app icon is now built with the Icon Composer pipeline
   (`AppIcon.icon`), replacing the older static `AppIcon.appiconset`, and
-  carries author-level appearance variants: the default Ember gradient, a
-  bronze variant for dark appearance, and a gray tinted variant.
+  carries author-level appearance variants: a flat seven-bar waveform on a
+  dark background shared by light and dark appearance, plus a tinted variant
+  that renders the bars as monochrome glyphs.
 - Interface copy polish: error messages and action labels were reworked to
   state what happened and what to do next, and the status-item recovery
   action is now reachable as "Show Whistral in Menu Bar" when macOS has

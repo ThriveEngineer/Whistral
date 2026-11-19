@@ -7,67 +7,102 @@ on:
   pull_request:
     branches: [main]
 
+# Why no xcodebuild on hosted runners?
+#
+# Whistral's project file uses the modern JSON project format
+# (Whistral.xcodeproj/project.xcproj), which the newest Xcode available on
+# GitHub-hosted macOS runners (26.6 on the macos-26 image) cannot read
+# ("Unable to read project"). The app is therefore built and released from a
+# machine with Xcode 27 (see scripts/package_release.sh); CI verifies
+# everything a hosted runner CAN verify: engine protocol static guarantees,
+# Swift syntax, version/doc consistency, and that a published tag release
+# carries the correctly named zip.
+
 jobs:
-  build:
-    name: Build (macOS, arm64)
-    runs-on: macos-latest
-    if: github.ref_type != 'tag'
+  engine-static:
+    name: Engine protocol static checks (ubuntu)
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
+      - name: Compile engine sidecar
+        run: python3 -m py_compile Whistral/Resources/Engine/whistral_engine.py
 
-      - name: Build
-        run: |
-          set -o pipefail
-          xcodebuild build \
-            -project Whistral.xcodeproj \
-            -scheme Whistral \
-            -configuration Debug \
-            -destination 'platform=macOS,arch=arm64' \
-            | tee build.log
+      - name: Session-token tripwires
+        run: python3 Tests/test_engine_protocol_static.py
 
-  release:
-    name: Release package (macOS, arm64)
+  swift-syntax:
+    name: Swift syntax gate (macos)
     runs-on: macos-latest
-    if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
-
-      # Expected version = pushed tag with a leading 'v' stripped
-      # (v0.1.0 -> 0.1.0). package_release.sh fails the build if the project's
-      # MARKETING_VERSION disagrees, so a forgotten bump breaks loudly here.
-      - name: Derive expected release version from tag
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "WHISTRAL_EXPECTED_VERSION=$VERSION" >> "$GITHUB_ENV"
-
-      - name: Build and package
-        run: ./scripts/package_release.sh
-
-      # Belt and suspenders: the script already gates on MARKETING_VERSION
-      # vs the tag; this verifies the artifact on disk really is
-      # Whistral-<tag-version>.zip (e.g. guards against a version-parsing
-      # regression in the script). Artifact name scheme is unchanged.
-      - name: Verify packaged zip name matches the tag
+      - name: Parse all Swift sources with the runner's Swift
         run: |
           set -euo pipefail
-          expected="Whistral-${GITHUB_REF_NAME#v}.zip"
-          if [[ ! -f "build/$expected" ]]; then
-            echo "::error::Expected build/$expected (from tag $GITHUB_REF_NAME) but it was not produced. Did MARKETING_VERSION in the Xcode project get bumped to '${GITHUB_REF_NAME#v}' before tagging?" >&2
-            ls -la build/ || true
+          status=0
+          for f in Whistral/*.swift; do
+            echo "parsing $f"
+            swiftc -parse "$f" || status=1
+          done
+          exit $status
+
+  consistency:
+    name: Version and docs consistency (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Release version is 0.1.0 everywhere it is stamped
+        run: |
+          set -euo pipefail
+          cpproj="Whistral.xcodeproj/project.xcproj"
+          version="$(grep -oE '"MARKETING_VERSION"[[:space:]]*:[[:space:]]*"[^"]+"' "$cpproj" | head -n 1 | sed -E 's/.*"([^"]+)"$/\1/')"
+          if [[ "$version" != "0.1.0" ]]; then
+            echo "::error::MARKETING_VERSION in $cpproj is '$version', expected 0.1.0 — bump it together with the CHANGELOG and release draft" >&2
+            exit 1
+          fi
+          if ! grep -q "## \[0.1.0\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no [0.1.0] section" >&2
+            exit 1
+          fi
+          if ! grep -q "first public release" .github/release/draft-v0.1.0.md; then
+            echo "::error::.github/release/draft-v0.1.0.md has no release heading" >&2
             exit 1
           fi
 
-      - name: Upload zip artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Whistral-${{ github.ref_name }}
-          path: build/*.zip
-          if-no-files-found: error
+  # Tag builds: the binary is built and uploaded from an Xcode 27 machine;
+  # CI verifies the published release instead of rebuilding it.
+  release-verify:
+    name: Release verification (tag)
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: MARKETING_VERSION matches the tag
+        run: |
+          set -euo pipefail
+          version="$(grep -oE '"MARKETING_VERSION"[[:space:]]*:[[:space:]]*"[^"]+"' Whistral.xcodeproj/project.xcproj | head -n 1 | sed -E 's/.*"([^"]+)"$/\1/')"
+          expected="${GITHUB_REF_NAME#v}"
+          if [[ "$version" != "$expected" ]]; then
+            echo "::error::MARKETING_VERSION ($version) does not match the pushed tag ($GITHUB_REF_NAME -> $expected). Re-tag after bumping the version." >&2
+            exit 1
+          fi
+
+      - name: Published release carries Whistral-<version>.zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          expected="Whistral-${GITHUB_REF_NAME#v}.zip"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" > release.json
+          asset="$(jq -r --arg name "$expected" '.assets[] | select(.name == $name) | .name' release.json | head -n 1)"
+          if [[ -z "$asset" ]]; then
+            echo "::error::The release for $GITHUB_REF_NAME exists but does not carry the $expected asset. Upload build/$expected from an Xcode 27 machine." >&2
+            jq -r '.assets[].name' release.json >&2
+            exit 1
+          fi
+          echo "verified: $asset present on the release"

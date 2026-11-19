@@ -157,6 +157,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
+        // Fallback for gap "hidden status item": if the user or the system
+        // removed the extra from the menu bar, this accessory app loses all
+        // mouse access (that menu IS the app's only surface). The menu only
+        // opens via the extra, so this item is mostly defensive; primary
+        // recovery is the launch-time auto-restore in MenuBarStatusItem-
+        // Controller.install() plus the onboarding instructions. HIG copy:
+        // title case, no ellipsis (actuates immediately).
+        if !MenuBarStatusItemController.shared.isExtraVisible {
+            let showItem = NSMenuItem(
+                title: "Show Whistral in Menu Bar",
+                action: #selector(MenuBarStatusItemController.showInMenuBar(_:)),
+                keyEquivalent: ""
+            )
+            showItem.target = MenuBarStatusItemController.shared
+            menu.addItem(showItem)
+        }
+
         let quit = NSMenuItem(title: "Quit Whistral",
                               action: #selector(quit(_:)),
                               keyEquivalent: "q")

@@ -8,13 +8,14 @@ and receive live partial transcripts.
 Protocol
 --------
 App -> engine (stdin): frames
-    4 bytes  little-endian uint32  frame length N
+    5 bytes  header: little-endian uint32 frame length N (N INCLUDES the
+             1 type byte), followed by the 1-byte type
     1 byte   frame type (0x01 = JSON command, 0x02 = raw audio payload)
     N-1 bytes payload
 
 JSON commands:
     {"cmd": "load",       "model": "<hf repo or path>", "temperature": 0.0}
-    {"cmd": "start",      "delayMs": 480}
+    {"cmd": "start",      "delayMs": 480, "token": 42}
     {"cmd": "stop"}
     {"cmd": "cancel"}
     {"cmd": "transcribe", "path": "/path/to/audio"}
@@ -25,11 +26,11 @@ Raw audio payloads are float32, mono, 16 kHz, little-endian samples.
 Engine -> app (stdout): newline-delimited JSON events
     {"type": "ready"}
     {"type": "modelState", "state": "downloading|loading|ready|error", ...}
-    {"type": "sessionStarted"}
+    {"type": "sessionStarted", "token": 42}
     {"type": "partial", "index": n, "text": "...", "segmentText": "..."}
-    {"type": "segment", "index": n, "text": "..."}
-    {"type": "final", "text": "..."}
-    {"type": "cancelled"}
+    {"type": "segment", "token": 42, "index": n, "text": "..."}
+    {"type": "final", "token": 42, "text": "..."}
+    {"type": "cancelled", "token": 42}
     {"type": "fileTranscript", "text": "...", "path": "..."}
     {"type": "error", "message": "..."}
     {"type": "log", "message": "..."}
@@ -98,6 +99,10 @@ class DownloadTqdm(hf_tqdm):
             pass
 
 
+class SessionKilled(Exception):
+    """Raised inside decode loops when the session is cancelled."""
+
+
 class VoxtralStream:
     """A single streaming dictation session for one model instance."""
 
@@ -129,6 +134,14 @@ class VoxtralStream:
         self.segment_text = ""   # text of the segment currently being decoded
         self.session_segments = []  # completed segment texts
         self._killed = threading.Event()
+        # Optional external cancel poll (fires the SessionKilled exception in
+        # the decode loops). Used so a cancel request interrupts even a flush
+        # in progress.
+        self.should_cancel = None
+        # Partials carry no token, so a stopped session's flush-tail partials
+        # can bleed stale text into a newer live session's HUD. Swift ignores
+        # partials during finalizing, so they are silenced during flush().
+        self.emit_partials = True
         self.prefix_embeds = None  # precomputed text prefix embeddings
 
     # ------------------------------------------------------------------ setup
@@ -171,8 +184,11 @@ class VoxtralStream:
         """Decode n_to_decode positions from embeds[0..n_to_decode-1].
 
         Returns (n_consumed, hit_eos). On EOS, closes the current segment.
+        Raises SessionKilled when the session is cancelled mid-decode.
         """
         for i in range(n_to_decode):
+            if self._killed.is_set() or (self.should_cancel and self.should_cancel()):
+                raise SessionKilled()
             token_embed = self.model.language_model.embed(self.y.reshape(1, 1))[0, 0]
             step_embed = (embeds[i] + token_embed)[None, None, :]
             logits = self.model.decode(step_embed, self.t_cond, mask=None, cache=self.cache)
@@ -187,12 +203,13 @@ class VoxtralStream:
 
             text = self.sp.decode([token_id], special_token_policy=SpecialTokenPolicy.IGNORE)
             self.segment_text += text
-            emit({
-                "type": "partial",
-                "index": len(self.session_segments),
-                "segmentText": self.segment_text,
-                "text": " ".join([s for s in self.session_segments + [self.segment_text] if s]),
-            })
+            if self.emit_partials:
+                emit({
+                    "type": "partial",
+                    "index": len(self.session_segments),
+                    "segmentText": self.segment_text,
+                    "text": " ".join([s for s in self.session_segments + [self.segment_text] if s]),
+                })
 
             if i > 0 and i % 256 == 0:
                 mx.clear_cache()
@@ -293,6 +310,7 @@ class VoxtralStream:
     def flush(self) -> str:
         """Finish the session: feed right padding, decode everything remaining."""
         self._killed.clear()
+        self.emit_partials = False  # flush-tail partials are ignored by the app; a new session may already be recording (partials carry no token)
         right_pad = np.zeros(N_RIGHT_PAD_TOKENS * SAMPLES_PER_TOKEN, dtype=np.float32)
         flush_chunk = np.concatenate([self.pending_audio, right_pad])
         if self.cache is not None and self.y is not None:
@@ -347,6 +365,45 @@ class Engine:
         self.model_id = None
         self.lock = threading.RLock()
         self.prefix_cache = {}
+        # All MLX work (model load, streaming sessions, file transcription)
+        # runs on this ONE dedicated worker thread. MLX streams are
+        # thread-local: ops on a lazily-evaluated graph reference the stream
+        # of the thread that created them, so mixing threads raises
+        # "There is no Stream(gpu, N) in current thread". One thread means
+        # every op — and every cached weight — shares the same streams.
+        self._jobs: queue.Queue = queue.Queue()
+        self._worker = None
+
+    # ------------------------------------------------------------- worker
+
+    def submit(self, fn, *args) -> None:
+        """Run fn(*args) on the dedicated MLX worker thread, in order."""
+        self._ensure_worker()
+        self._jobs.put((fn, args))
+
+    def _ensure_worker(self) -> None:
+        if self._worker is None or not self._worker.is_alive():
+            self._worker = threading.Thread(
+                target=self._worker_loop, name="whistral-mlx", daemon=True,
+            )
+            self._worker.start()
+
+    def _worker_loop(self) -> None:
+        # Set the GPU default for this thread once; every job below inherits it.
+        try:
+            mx.set_default_device(mx.gpu)
+        except Exception:  # noqa: BLE001
+            pass  # fall back to MLX's own default rather than dying at boot
+
+        while True:
+            job = self._jobs.get()
+            if job is None:
+                return
+            fn, args = job
+            try:
+                fn(*args)
+            except Exception as exc:  # noqa: BLE001
+                emit({"type": "error", "message": f"Engine worker error: {exc}"})
 
     # ------------------------------------------------------------- model load
 
@@ -370,8 +427,9 @@ class Engine:
                 return
             emit({"type": "modelState", "state": "loading", "model": model_id})
             local_path = self._download(model_id)
-            model, config = load_model(local_path)
-            sp = Tekkenizer.from_file(str(local_path / "tekken.json"))
+            # voxmlx.load_model returns (model, tokenizer, config); the
+            # tokenizer already comes from the repo's tekken.json.
+            model, sp, config = load_model(local_path)
             self.model, self.sp, self.config = model, sp, config
             self.model_id = model_id
             self.temperature = temperature
@@ -380,63 +438,86 @@ class Engine:
 
     # ---------------------------------------------------------------- session
 
-    def _stream_session(self, audio_q: queue.Queue, ctl: dict, n_delay_tokens: int):
-        """Runs a full session on a worker thread."""
-        try:
-            stream = VoxtralStream(self.model, self.sp, self.temperature)
-            stream.begin(n_delay_tokens)
-            emit({"type": "sessionStarted"})
+    def _stream_session(self, audio_q: queue.Queue, ctl: dict, n_delay_tokens: int, token: int = 0):
+        """Runs a full session on a worker thread.
 
-            right_pad_pending = False
-            while True:
+        Runs on the Engine's dedicated MLX worker thread (see Engine.submit):
+        sessions, loads and file transcription are all serialized there, both
+        to avoid GPU-stream thread-affinity errors and to keep the stdin
+        reader thread responsive.
+        """
+        try:
+            self.lock.acquire()
+            try:
                 if ctl.get("cancel"):
-                    stream.cancel()
-                    emit({"type": "cancelled"})
+                    emit({"type": "cancelled", "token": token})
                     return
-                if ctl.get("flush"):
-                    break
-                got = False
+                stream = VoxtralStream(self.model, self.sp, self.temperature)
+                # Cancel polling inside decode loops (incl. flush).
+                should_cancel = ctl.get
+                stream.should_cancel = lambda: bool(should_cancel("cancel"))
+                stream.begin(n_delay_tokens)
+                emit({"type": "sessionStarted", "token": token})
+
+                right_pad_pending = False
+                while True:
+                    if ctl.get("cancel"):
+                        raise SessionKilled()
+                    if ctl.get("flush"):
+                        break
+                    got = False
+                    try:
+                        while True:
+                            chunk = audio_q.get_nowait()
+                            if chunk is None:  # end-of-audio marker
+                                right_pad_pending = True
+                            else:
+                                stream.append_audio(chunk)
+                            got = True
+                    except queue.Empty:
+                        pass
+                    if right_pad_pending:
+                        break
+                    if not got:
+                        time.sleep(0.01)
+                    # advance decoding
+                    try:
+                        if stream.pump():
+                            emit({
+                                "type": "segment", "token": token,
+                                "index": len(stream.session_segments),
+                                "text": stream.session_segments[-1],
+                            })
+                    except Exception as exc:  # noqa: BLE001
+                        if isinstance(exc, SessionKilled):
+                            raise
+                        emit({"type": "error", "message": f"Engine streaming error: {exc}"})
+                        ctl["abort"] = True
+                        # End the session explicitly so the app never waits
+                        # for a final that would otherwise never arrive.
+                        emit({"type": "final", "token": token, "text": " ".join(
+                            s for s in stream.session_segments if s)})
+                        return
+
+                # Flush: consume any remaining queued audio first
                 try:
                     while True:
                         chunk = audio_q.get_nowait()
-                        if chunk is None:  # end-of-audio marker
-                            right_pad_pending = True
-                        else:
+                        if chunk is not None:
                             stream.append_audio(chunk)
-                        got = True
                 except queue.Empty:
                     pass
-                if right_pad_pending:
-                    break
-                if not got:
-                    time.sleep(0.01)
-                # advance decoding
-                try:
-                    if stream.pump():
-                        emit({
-                            "type": "segment",
-                            "index": len(stream.session_segments),
-                            "text": stream.session_segments[-1],
-                        })
-                except Exception as exc:  # noqa: BLE001
-                    emit({"type": "error", "message": f"Engine streaming error: {exc}"})
-                    stream.cancel()
-                    ctl["abort"] = True
-                    return
 
-            # Flush: consume any remaining queued audio first
-            try:
-                while True:
-                    chunk = audio_q.get_nowait()
-                    if chunk is not None:
-                        stream.append_audio(chunk)
-            except queue.Empty:
-                pass
-
-            final = stream.flush()
-            emit({"type": "final", "text": final})
+                final = stream.flush()
+                emit({"type": "final", "text": final, "token": token})
+            finally:
+                self.lock.release()
+        except SessionKilled:
+            emit({"type": "cancelled", "token": token})
         except Exception as exc:  # noqa: BLE001
             emit({"type": "error", "message": f"Engine session error: {exc}"})
+            # Always terminate the session so the app never waits forever.
+            emit({"type": "final", "text": "", "token": token})
 
 
 ENGINE = Engine()
@@ -445,22 +526,34 @@ ENGINE = Engine()
 class StreamRunner:
     """Single in-flight streaming session."""
 
-    def __init__(self, engine: Engine):
+    def __init__(self, engine: Engine, session_token: int = 0):
         self.engine = engine
+        self.session_token = session_token
         self.audio_q: queue.Queue = queue.Queue(maxsize=4096)
         self.thread = None
         self.ctl = {"cancel": False, "flush": False, "abort": False}
         self.active = False
+        # Set when the worker thread has fully finished this session's job
+        # (including any in-progress flush) so cancel/stop can distinguish
+        # a live-but-stopped session from a dead one.
+        self.finished = threading.Event()
 
     def start(self, n_delay_tokens: int) -> None:
         self.ctl = {"cancel": False, "flush": False, "abort": False}
         self.active = True
-        self.thread = threading.Thread(
-            target=self.engine._stream_session,
-            args=(self.audio_q, self.ctl, n_delay_tokens),
-            daemon=True,
-        )
-        self.thread.start()
+        # Enqueue on the Engine's single MLX worker thread instead of spawning
+        # a new thread: MLX streams are thread-local, so inference must always
+        # run on the thread that loaded (and cached) the model's streams.
+        # If a previous session is still flushing there, this job waits in
+        # line — off the command reader thread.
+        def _job():
+            try:
+                self.engine._stream_session(
+                    self.audio_q, self.ctl, n_delay_tokens, self.session_token,
+                )
+            finally:
+                self.finished.set()
+        self.engine.submit(_job)
 
     def offer_audio(self, samples: np.ndarray):
         try:
@@ -477,42 +570,69 @@ class StreamRunner:
 
     def stop(self, sync_timeout: float = 60.0) -> None:
         if not self.active:
-            emit({"type": "final", "text": ""})
+            # Already finished (the session emitted its own final); echo the
+            # token so a stale tokenless event can't kill a queued session.
+            emit({"type": "final", "text": "", "token": self.session_token})
             return
         self.ctl["flush"] = True
         try:
             self.audio_q.put_nowait(None)  # end-of-audio marker
         except queue.Full:
+            # Safe: the reader loop also polls ctl["flush"].
             pass
-        if self.thread:
-            self.thread.join(timeout=sync_timeout)
+        # Intentionally no join here: this runs on the command reader thread,
+        # and blocking it would leave Esc/quit frames unread. The session
+        # thread emits 'final' itself when the flush completes; a following
+        # session waits for the model on the Engine lock.
         self.active = False
 
     def cancel(self) -> None:
         if not self.active:
-            emit({"type": "cancelled"})
+            emit({"type": "cancelled", "token": self.session_token})
             return
         self.ctl["cancel"] = True
-        if self.thread:
-            self.thread.join(timeout=15.0)
+        # Non-blocking, like stop(): the session thread observes the flag
+        # (including mid-flush, via the decode-loop poll) and emits
+        # 'cancelled' itself.
         self.active = False
 
 
 RUNNER = None
+# Sessions that were stopped or cancelled but whose worker job may still be
+# flushing. A 'cancel' arriving here (e.g. Esc during .finalizing, after stop
+# already cleared RUNNER) can still reach them via ctl["cancel"], which the
+# decode loop polls — including mid-flush. Pruned by the finished event.
+FLUSHING = []
 
 
-def handle_command(cmd: dict, runner: StreamRunner) -> bool:
+def _prune_flushing() -> None:
+    FLUSHING[:] = [r for r in FLUSHING if not r.finished.is_set()]
+
+
+def handle_command(cmd: dict) -> bool:
     """Returns False when the engine should quit."""
     global RUNNER
+
     action = cmd.get("cmd")
 
     if action == "load":
+        model_id = cmd.get("model", "mlx-community/Voxtral-Mini-4B-Realtime-6bit")
         try:
-            ENGINE.load(cmd.get("model", "mlx-community/Voxtral-Mini-4B-Realtime-6bit"),
-                        float(cmd.get("temperature", 0.0)))
-        except Exception as exc:  # noqa: BLE001
-            emit({"type": "modelState", "state": "error", "message": str(exc)[:400]})
-            emit({"type": "error", "message": f"Model load failed: {exc}"})
+            temperature = float(cmd.get("temperature", 0.0))
+        except (TypeError, ValueError):
+            temperature = 0.0
+
+        def _load(m, t):
+            try:
+                ENGINE.load(m, t)
+            except Exception as exc:  # noqa: BLE001
+                emit({"type": "modelState", "state": "error", "message": str(exc)[:400]})
+                emit({"type": "error", "message": f"Model load failed: {exc}"})
+
+        # Run on the MLX worker thread: loading touches the model (GPU
+        # streams) and must not block the stdin reader — a load commanded
+        # during a live session simply queues behind it instead of wedging.
+        ENGINE.submit(_load, model_id, temperature)
 
     elif action == "start":
         delay_ms = int(cmd.get("delayMs", 480))
@@ -521,32 +641,54 @@ def handle_command(cmd: dict, runner: StreamRunner) -> bool:
         if RUNNER is not None and RUNNER.active:
             emit({"type": "error", "message": "A session is already running"})
         else:
-            RUNNER = StreamRunner(ENGINE)
+            _prune_flushing()
+            token = int(cmd.get("token", 0) or 0)
+            RUNNER = StreamRunner(ENGINE, session_token=token)
             RUNNER.start(n_delay_tokens)
 
     elif action == "stop":
         if RUNNER is not None:
             RUNNER.stop()
+            FLUSHING.append(RUNNER)
             RUNNER = None
 
     elif action == "cancel":
+        _prune_flushing()
         if RUNNER is not None:
             RUNNER.cancel()
+            FLUSHING.append(RUNNER)
             RUNNER = None
+        # A cancel that arrives while a previous session is still flushing
+        # (Esc during .finalizing) kills that flush via the decode-loop poll.
+        for r in FLUSHING:
+            if not r.finished.is_set():
+                r.ctl["cancel"] = True
 
     elif action == "audio":
         pass  # handled at the frame layer
 
     elif action == "transcribe":
         path = cmd.get("path", "")
-        try:
-            from voxmlx import transcribe as vx_transcribe
-            text = vx_transcribe(path, model_path=ENGINE.model_id, temperature=ENGINE.temperature)
-            emit({"type": "fileTranscript", "path": path, "text": text})
-        except Exception as exc:  # noqa: BLE001
-            emit({"type": "error", "message": f"File transcription failed: {exc}"})
+
+        def _transcribe(p):
+            try:
+                from voxmlx import transcribe as vx_transcribe
+                text = vx_transcribe(p, model_path=ENGINE.model_id, temperature=ENGINE.temperature)
+                emit({"type": "fileTranscript", "path": p, "text": text})
+            except Exception as exc:  # noqa: BLE001
+                emit({"type": "error", "message": f"File transcription failed: {exc}"})
+
+        # Inference → MLX worker thread (thread-local GPU streams).
+        ENGINE.submit(_transcribe, path)
 
     elif action == "quit":
+        # Ask all live/parked decode loops to stop; each poll interval is one
+        # MLX step, so interpreter shutdown waits at most one in-flight op.
+        if RUNNER is not None:
+            RUNNER.cancel()
+        for r in FLUSHING:
+            if not r.finished.is_set():
+                r.ctl["cancel"] = True
         return False
 
     else:
@@ -565,6 +707,9 @@ def read_frames():
             # App is gone; stop cleanly.
             if RUNNER is not None:
                 RUNNER.cancel()
+            for r in FLUSHING:
+                if not r.finished.is_set():
+                    r.ctl["cancel"] = True
             return
         (length,) = struct.unpack("<I", header[:4])
         ftype = header[4]
@@ -575,7 +720,7 @@ def read_frames():
             except json.JSONDecodeError:
                 emit({"type": "error", "message": "Malformed JSON command"})
                 continue
-            if not handle_command(cmd, RUNNER):
+            if not handle_command(cmd):
                 return
         elif ftype == FRAME_AUDIO:
             samples = np.frombuffer(payload, dtype="<f4")
@@ -590,6 +735,13 @@ def main() -> None:
     try:
         read_frames()
     finally:
+        # Reader loop is over (quit or EOF): give the daemon worker one
+        # bounded chance to deliver its terminal emit before interpreter
+        # finalization. Decode-step polls exit within one MLX op, so 2 s
+        # is an upper bound — never an unbounded join.
+        w = ENGINE._worker
+        if w is not None:
+            w.join(timeout=2.0)
         sys.exit(0)
 
 

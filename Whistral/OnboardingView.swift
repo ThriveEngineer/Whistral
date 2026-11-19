@@ -365,7 +365,7 @@ private struct ModelStep: View {
                     ProgressView(value: Double(model.downloadReceived), total: Double(model.downloadTotal))
                 }
             } else {
-                Button("Start download") {
+                Button("Start Download") {
                     AppModel.shared.engineClient.load(modelID: AppModel.shared.settings.modelID)
                 }
                 .controlSize(.large)
@@ -384,6 +384,9 @@ private struct FinishStep: View {
             BulletRow(systemImage: "menubar.rectangle",
                       title: "Lives in your menu bar",
                       detail: "Whistral appears as a small microphone icon. Use the menu to start dictation, open Settings, or review recent transcripts.")
+            BulletRow(systemImage: "questionmark.circle",
+                      title: "Can't find the icon?",
+                      detail: "Whistral keeps running even if macOS hides the menu bar icon. Use \(AppModel.shared.settings.hotkeyDisplay) to dictate, or relaunch Whistral from Applications to show its menu again.")
             BulletRow(systemImage: "keyboard",
                       title: "Try it now",
                       detail: "Click into any text field, hold \(AppModel.shared.settings.hotkeyDisplay), speak, and release.")
@@ -504,8 +507,11 @@ private struct PermissionRow: View {
                 .accessibilityLabel("\(title) permission granted")
             )
         case .notDetermined, .denied:
+            // HIG pre-alert rules (Privacy > Pre-alert screens, windows, or
+            // views): the custom screen's button must read "Continue"-style,
+            // reserving "Allow" for the system alert that we open next.
             return AnyView(
-                Button(status == .denied ? "Open Settings" : "Allow") { onAction() }
+                Button(status == .denied ? "Open Settings" : "Continue") { onAction() }
             )
         }
     }

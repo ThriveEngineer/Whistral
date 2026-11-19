@@ -51,7 +51,7 @@ struct SettingsView: View {
                 .tag(Pane.about)
         }
         .frame(width: 560, height: 400)
-        .onChange(of: selectedPane) { pane in
+        .onChange(of: selectedPane) { _, pane in
             SettingsWindowController.shared.setWindowTitle("Whistral Settings — \(pane.rawValue)")
         }
     }
@@ -67,6 +67,7 @@ private struct GeneralPane: View {
             Section {
                 Toggle("Open Whistral when I log in", isOn: $settings.launchAtLogin)
                 Toggle("Insert transcription at the cursor", isOn: $settings.autoInsert)
+                Toggle("Sound feedback", isOn: $settings.soundFeedback)
             } header: {
                 Text("Behavior")
             } footer: {
@@ -92,6 +93,10 @@ private struct GeneralPane: View {
 
 private struct DictationPane: View {
     @ObservedObject private var settings = SettingsStore.shared
+    // Observe the live poll so the accessibility row updates while the
+    // window is open; the static Permissions.accessibility read here before
+    // was unobservable, so the row stayed stale (and "off") mid-session.
+    @ObservedObject private var permissionMonitor = PermissionMonitor.shared
 
     var body: some View {
         Form {
@@ -115,7 +120,7 @@ private struct DictationPane: View {
                     }
                 }
                 Toggle("Insert transcription at the cursor", isOn: $settings.autoInsert)
-                if Permissions.accessibility != .granted {
+                if permissionMonitor.accessibility != .granted {
                     HStack {
                         Label("Accessibility access is off — enable it to insert text.", systemImage: "exclamationmark.triangle")
                             .font(.callout)
@@ -245,9 +250,7 @@ private struct EnginePane: View {
                         Text("\(ms) ms").tag(ms)
                     }
                 }
-                .onChange(of: settings.transcriptionDelayMs) { _ in
-                    // Applies to the next dictation session.
-                }
+                // Applies to the next dictation session.
                 Text("Higher delays give the model more context and usually more accurate text; lower delays respond faster. Applies to the next dictation.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -312,8 +315,13 @@ private struct AboutPane: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             LabeledContent("Model") {
-                Link("mistralai/Voxtral-Mini-4B-Realtime-2602",
+                Link("Voxtral Mini 4B Realtime",
                      destination: URL(string: "https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602")!)
+            }
+            .font(.callout)
+            LabeledContent("Local build") {
+                Link("mlx-community 6-bit (default)",
+                     destination: URL(string: "https://huggingface.co/mlx-community/Voxtral-Mini-4B-Realtime-6bit")!)
             }
             .font(.callout)
             LabeledContent("License") {

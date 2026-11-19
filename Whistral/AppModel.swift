@@ -116,7 +116,7 @@ final class AppModel: ObservableObject {
                 try service.unregister()
             }
         } catch {
-            lastError = "Could not update login item: \(error.localizedDescription)"
+            lastError = "Could not update the login item: \(error.localizedDescription). Try again in Settings."
         }
     }
 
@@ -193,8 +193,11 @@ extension AppModel: SidecarEngineClientDelegate {
             engineState = state
             transcriber.handleEngineEvent(event)
 
-        case .final(let text):
-            recordTranscript(text)
+        case .final(_, _):
+            // Recording is owned by TranscriptionController: it has the
+            // session token and phase guard, so only accepted (current,
+            // non-cancelled) finals reach recentTranscripts; lastTranscript
+            // is likewise set there. Stale finals are dropped silently.
             transcriber.handleEngineEvent(event)
 
         case .partial, .segment, .cancelled, .sessionStarted:
@@ -204,7 +207,19 @@ extension AppModel: SidecarEngineClientDelegate {
             lastError = message
             transcriber.handleEngineEvent(event)
 
-        case .ready, .fileTranscript:
+        case .ready:
+            // The sidecar process is up but has no model. Load the currently
+            // selected model unless one is already loading (covers relaunch,
+            // engine restarts after a crash, and post-onboarding).
+            switch engineState {
+            case .loading, .downloadingModel, .ready:
+                break
+            default:
+                engineState = .loading
+                engineClient.load(modelID: settings.modelID)
+            }
+
+        case .fileTranscript:
             break
         }
     }

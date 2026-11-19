@@ -41,6 +41,33 @@ python3 Tests/test_engine_e2e.py
 
 If the test fails, verify the venv exists at the path above and that all packages from `requirements.txt` are installed in it.
 
+## Releases
+
+To produce a distributable zip locally, run the packaging script from the repository root:
+
+```sh
+./scripts/package_release.sh
+```
+
+It builds Whistral in Release configuration with:
+
+```sh
+xcodebuild build \
+  -project Whistral.xcodeproj \
+  -scheme Whistral \
+  -configuration Release \
+  -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath <derived-data-path>
+```
+
+and zips the built `.app` to `build/Whistral-<version>.zip`, where `<version>` is the `MARKETING_VERSION` read from the Xcode project. By default the build uses `build/DerivedData`; override the DerivedData location with:
+
+```sh
+WHISTRAL_DERIVED_DATA=/path/to/deriveddata ./scripts/package_release.sh
+```
+
+The same script runs in CI: pushing a tag matching `v*` triggers the `release` job in `.github/workflows/ci.yml`, which packages the app and uploads the zip as a workflow artifact. Remember to bump `MARKETING_VERSION` in the project before tagging a release. Release notes content for tagged releases lives in `.github/release/` (for example, the first-release draft at `.github/release/draft-v0.1.0.md`) — paste it into the GitHub Release when publishing.
+
 ## Code Style
 
 - **Swift 5.** Keep code compatible with the project's current Swift 5 toolchain.

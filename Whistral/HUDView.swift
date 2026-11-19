@@ -8,6 +8,7 @@ import SwiftUI
 struct HUDView: View {
 
     @ObservedObject var controller: HUDController
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var statusTitle: String {
         switch controller.phase {
@@ -61,12 +62,14 @@ struct HUDView: View {
         if controller.phase == .transcribing {
             HStack(spacing: 10) {
                 // Indeterminate shimmer
-                HStack(spacing: 4) {
-                    ForEach(0..<3, id: \.self) { i in
-                        Circle()
-                            .fill(.tertiary)
-                            .frame(width: 6, height: 6)
-                            .opacity(transcribingDotOpacity(i))
+                TimelineView(.animation(minimumInterval: nil, paused: reduceMotion)) { context in
+                    HStack(spacing: 4) {
+                        ForEach(0..<3, id: \.self) { i in
+                            Circle()
+                                .fill(.tertiary)
+                                .frame(width: 6, height: 6)
+                                .opacity(Self.transcribingDotOpacity(i, at: context.date))
+                        }
                     }
                 }
                 Text(controller.partialText.isEmpty ? "Finishing up…" : controller.partialText)
@@ -106,9 +109,16 @@ struct HUDView: View {
         }
     }
 
-    private func transcribingDotOpacity(_ index: Int) -> Double {
-        // Simple deterministic pulse; replaced by animation frames below.
-        0.35 + 0.65 * Double(abs(sin(Date().timeIntervalSince1970 * 3 + Double(index))))
+    /// Smooth, staggered pulse driven by the timeline date (continuous loop).
+    /// Under Reduce Motion the timeline is paused, so this evaluates once and
+    /// the dots keep a fixed opacity.
+    private static func transcribingDotOpacity(_ index: Int, at date: Date) -> Double {
+        let period: TimeInterval = 1.2
+        let phase = date.timeIntervalSinceReferenceDate
+            .truncatingRemainder(dividingBy: period) / period
+        let stagger = Double(index) / 3.0
+        let wave = sin((phase + stagger) * 2 * .pi)
+        return 0.3 + 0.7 * (wave * 0.5 + 0.5)
     }
 }
 

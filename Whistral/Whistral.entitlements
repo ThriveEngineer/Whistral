@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Hardened Runtime: grant the process itself access to the microphone.
+	     Without this entitlement, TCC's hardened-runtime prompt policy
+	     silently refuses to show the microphone prompt (tccd:
+	     "Prompting policy for hardened runtime ... requires entitlement
+	     com.apple.security.device.audio-input"). -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+</dict>
+</plist>

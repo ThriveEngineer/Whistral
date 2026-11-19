@@ -21,9 +21,13 @@ final class AudioCaptureEngine: NSObject {
     var onAudio: (([Float32]) -> Void)?
     /// Called from the audio thread with a smoothed 0...1 input level.
     var onLevel: ((Float) -> Void)?
+    /// Called on the main queue when the audio hardware reconfigures
+    /// (default device changed, sample rate change, ...) mid-capture.
+    var onInterrupted: (() -> Void)?
 
     private var isCapturing = false
     private var workItem: DispatchWorkItem?
+    private var configObserver: NSObjectProtocol?
 
     func start() throws {
         guard !isCapturing else { return }
@@ -48,18 +52,47 @@ final class AudioCaptureEngine: NSObject {
         }
 
         let tapFormat = inputFormat
-        input.installTap(onBus: 0, bufferSize: 2048, format: tapFormat) { [weak self] buffer, _ in
+        // macOS 27.0 deprecated installTap(onBus:bufferSize:format:block:) in
+        // favor of installTapOnBus:bufferSize:format:error:block: (Swift refines
+        // it to __installTap, throwing instead of taking an NSError out-param).
+        // Same tap semantics otherwise — same block type, same removeTap
+        // lifetime; installation failures now surface as a thrown error instead
+        // of silently leaving no tap installed.
+        try engine.inputNode.__installTap(onBus: 0, bufferSize: 2048, format: tapFormat, error: ()) { [weak self] buffer, _ in
             self?.handleBuffer(buffer, converter: converter, targetFormat: targetFormat)
         }
 
         engine.prepare()
-        try engine.start()
+        do {
+            try engine.start()
+        } catch {
+            // Walk the tap back so a failed start can't leak it.
+            input.removeTap(onBus: 0)
+            throw error
+        }
         isCapturing = true
+
+        // If the audio hardware reconfigures mid-session (default device or
+        // rate change), the tap format and converter go stale; end the held
+        // session gracefully instead of feeding the engine garbage.
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self, self.isCapturing else { return }
+            self.stop()
+            self.onInterrupted?()
+        }
     }
 
     func stop() {
         guard isCapturing else { return }
         isCapturing = false
+        if let observer = configObserver {
+            NotificationCenter.default.removeObserver(observer)
+            configObserver = nil
+        }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
     }
@@ -76,11 +109,12 @@ final class AudioCaptureEngine: NSObject {
         let frames = Int(buffer.frameLength)
         guard frames > 0 else { return }
 
-        // Input level for the waveform meters (hardware-rate mono average).
+        // Input level for the waveform meters (hardware-rate mono average
+        // across all channels).
         let channelCount = Int(buffer.format.channelCount)
         var sum: Float = 0
         var sampleCount = 0
-        for ch in 0..<min(1, channelCount) {
+        for ch in 0..<channelCount {
             let ptr = channelData[ch]
             for i in 0..<frames {
                 sum += ptr[i] * ptr[i]
@@ -130,7 +164,7 @@ enum AudioCaptureError: LocalizedError {
         case .noInputDevice:
             return "No microphone found. Connect a microphone and try again."
         case .conversionFailed:
-            return "Whistral could not set up audio processing for this microphone."
+            return "Whistral could not set up audio processing for this microphone. Try choosing a different input device in System Settings > Sound."
         }
     }
 }

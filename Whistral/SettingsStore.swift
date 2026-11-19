@@ -98,7 +98,7 @@ final class SettingsStore: ObservableObject {
     @Published var hasCompletedOnboarding: Bool = false {
         didSet { defaults.set(hasCompletedOnboarding, forKey: Key.hasCompletedOnboarding); objectWillChange.send() }
     }
-    @Published var soundFeedback: Bool = false {
+    @Published var soundFeedback: Bool = true {
         didSet { defaults.set(soundFeedback, forKey: Key.soundFeedback); objectWillChange.send() }
     }
 
@@ -115,7 +115,7 @@ final class SettingsStore: ObservableObject {
         transcriptionDelayMs = defaults.object(forKey: Key.transcriptionDelayMs) as? Int ?? 480
         launchAtLogin = defaults.object(forKey: Key.launchAtLogin) as? Bool ?? false
         hasCompletedOnboarding = defaults.object(forKey: Key.hasCompletedOnboarding) as? Bool ?? false
-        soundFeedback = defaults.object(forKey: Key.soundFeedback) as? Bool ?? false
+        soundFeedback = defaults.object(forKey: Key.soundFeedback) as? Bool ?? true
     }
 
     // MARK: - Display

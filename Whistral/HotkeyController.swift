@@ -48,6 +48,13 @@ final class HotkeyController {
     var hotkey: Hotkey = .default
     var isEnabled = false
 
+    /// True from the moment we consume a matching keyDown until the paired
+    /// keyUp arrives. Only an armed press may be consumed on keyUp — otherwise
+    /// every space keyUp in the whole system (plain spaces, ⌘Space Spotlight)
+    /// would be swallowed, because the keyUp can't be modifier-matched
+    /// reliably (the user may release ⌥ before Space).
+    private var isArmed = false
+
     func enable(hotkey: Hotkey) {
         self.hotkey = hotkey
         disable()
@@ -105,16 +112,21 @@ final class HotkeyController {
         runLoopSource = nil
         opaqueSelf = nil
         retainedSelf = nil
+        isArmed = false
         isEnabled = false
     }
 
     private func handle(event: CGEvent, type: CGEventType) -> Unmanaged<CGEvent>? {
         guard isEnabled else { return Unmanaged.passUnretained(event) }
 
-        // macOS can disable a tap under load; re-enable it.
+        // macOS can disable a tap under load; re-enable it — but debounce so
+        // a persistently blocked backend can't spin the enable/disable loop.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap = eventTap {
-                CGEvent.tapEnable(tap: tap, enable: true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                    guard let self, self.isEnabled, !self.isArmed else { return }
+                    CGEvent.tapEnable(tap: tap, enable: true)
+                }
             }
             return Unmanaged.passUnretained(event)
         }
@@ -124,22 +136,33 @@ final class HotkeyController {
             return Unmanaged.passUnretained(event)
         }
 
-        let relevantMods: CGEventFlags = [.maskCommand, .maskAlternate, .maskControl, .maskShift]
-        let flags = event.flags.intersection(relevantMods)
-        guard flags.rawValue == hotkey.modifiers else {
-            return Unmanaged.passUnretained(event)
-        }
-
         switch type {
         case .keyDown:
+            // Require the exact modifier combo so ordinary presses pass through.
+            let relevantMods: CGEventFlags = [.maskCommand, .maskAlternate, .maskControl, .maskShift]
+            let flags = event.flags.intersection(relevantMods)
+            guard flags.rawValue == hotkey.modifiers else {
+                return Unmanaged.passUnretained(event)
+            }
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             if !isRepeat {
                 onKeyDown?()
-                return nil // consume
+                isArmed = true
+                return nil // consume: ours
             }
+            // Auto-repeat of our held press: consume so no stray spaces leak.
+            return isArmed ? nil : Unmanaged.passUnretained(event)
         case .keyUp:
-            onKeyUp?()
-            return nil // consume
+            // Consume only the keyUp of a press we actually took. Keyups are
+            // modifier-flaky, so we don't re-match flags here — but an unarmed
+            // space keyUp (plain typing, ⌘Space Spotlight, other apps) must
+            // pass through untouched.
+            if isArmed {
+                isArmed = false
+                onKeyUp?()
+                return nil
+            }
+            return Unmanaged.passUnretained(event)
         default:
             break
         }

@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -10,6 +11,7 @@ jobs:
   build:
     name: Build (macOS, arm64)
     runs-on: macos-latest
+    if: github.ref_type != 'tag'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,3 +28,46 @@ jobs:
             -configuration Debug \
             -destination 'platform=macOS,arch=arm64' \
             | tee build.log
+
+  release:
+    name: Release package (macOS, arm64)
+    runs-on: macos-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      # Expected version = pushed tag with a leading 'v' stripped
+      # (v0.1.0 -> 0.1.0). package_release.sh fails the build if the project's
+      # MARKETING_VERSION disagrees, so a forgotten bump breaks loudly here.
+      - name: Derive expected release version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "WHISTRAL_EXPECTED_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build and package
+        run: ./scripts/package_release.sh
+
+      # Belt and suspenders: the script already gates on MARKETING_VERSION
+      # vs the tag; this verifies the artifact on disk really is
+      # Whistral-<tag-version>.zip (e.g. guards against a version-parsing
+      # regression in the script). Artifact name scheme is unchanged.
+      - name: Verify packaged zip name matches the tag
+        run: |
+          set -euo pipefail
+          expected="Whistral-${GITHUB_REF_NAME#v}.zip"
+          if [[ ! -f "build/$expected" ]]; then
+            echo "::error::Expected build/$expected (from tag $GITHUB_REF_NAME) but it was not produced. Did MARKETING_VERSION in the Xcode project get bumped to '${GITHUB_REF_NAME#v}' before tagging?" >&2
+            ls -la build/ || true
+            exit 1
+          fi
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Whistral-${{ github.ref_name }}
+          path: build/*.zip
+          if-no-files-found: error

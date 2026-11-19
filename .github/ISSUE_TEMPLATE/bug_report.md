@@ -9,7 +9,7 @@ labels: [bug]
 
 ## macOS version
 
-<!-- e.g. macOS 15.2 (Sequoia) — include the exact version from  > About This Mac -->
+<!-- e.g. macOS 27.2 — include the exact version from  > About This Mac (Whistral requires macOS 27.2 or newer) -->
 
 ## Apple Silicon chip
 
@@ -25,7 +25,7 @@ labels: [bug]
 
 ## App version
 
-<!-- e.g. 1.2.0, or a commit hash if built from source -->
+<!-- e.g. 0.1.0, or a commit hash if built from source -->
 
 ## Steps to reproduce
 

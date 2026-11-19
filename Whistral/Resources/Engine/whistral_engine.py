@@ -508,7 +508,7 @@ def handle_command(cmd: dict, runner: StreamRunner) -> bool:
 
     if action == "load":
         try:
-            ENGINE.load(cmd.get("model", "mlx-community/Voxtral-Mini-4B-Realtime-2602-4bit"),
+            ENGINE.load(cmd.get("model", "mlx-community/Voxtral-Mini-4B-Realtime-6bit"),
                         float(cmd.get("temperature", 0.0)))
         except Exception as exc:  # noqa: BLE001
             emit({"type": "modelState", "state": "error", "message": str(exc)[:400]})

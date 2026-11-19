@@ -17,13 +17,15 @@ final class AppModel: ObservableObject {
 
     static let shared = AppModel()
 
-    static let defaultModelID = "mlx-community/Voxtral-Mini-4B-Realtime-2602-4bit"
+    static let defaultModelID = "mlx-community/Voxtral-Mini-4B-Realtime-6bit"
 
     /// Available quantizations offered by mlx-community, lightest first.
+    /// Note: only repos in voxmlx-native converted format (config.json with a
+    /// "multimodal" section) are loadable by the engine; the "-2602-4bit"
+    /// community port uses an incompatible flat config and is not offered.
     static let availableModels: [(id: String, label: String, detail: String)] = [
-        ("mlx-community/Voxtral-Mini-4B-Realtime-2602-4bit", "Voxtral Mini 4B Realtime — 4-bit", "Fastest, ~2.6 GB download"),
-        ("mlx-community/Voxtral-Mini-4B-Realtime-2602-fp16", "Voxtral Mini 4B Realtime — FP16", "Highest quality, ~8.6 GB download"),
-        ("mlx-community/Voxtral-Mini-4B-Realtime-6bit", "Voxtral Mini 4B Realtime — 6-bit", "Balanced, ~3.9 GB download"),
+        ("mlx-community/Voxtral-Mini-4B-Realtime-6bit", "Voxtral Mini 4B Realtime — 6-bit", "Recommended, ~3.9 GB download"),
+        ("mistralai/Voxtral-Mini-4B-Realtime-2602", "Voxtral Mini 4B Realtime — BF16 (original)", "Highest quality, ~8.6 GB download"),
     ]
 
     let settings = SettingsStore.shared

@@ -62,7 +62,7 @@ No audio, text, or telemetry ever leaves your Mac.
 - The model weights and the embedded Python engine are stored locally under
   `~/Library/Application Support/Whistral/`.
 - No network calls except the one-time model download from
-  [Hugging Face](https://huggingface.co/mlx-community/Voxtral-Mini-4B-Realtime-2602-4bit).
+  [Hugging Face](https://huggingface.co/mlx-community/Voxtral-Mini-4B-Realtime-6bit).
 
 ## Settings
 
@@ -71,7 +71,7 @@ No audio, text, or telemetry ever leaves your Mac.
 | Dictation shortcut | Re-recordable global hotkey (modifier + key required) |
 | Push-to-talk / toggle | Hold the key to talk, or press to start/stop |
 | Cancel with Esc | Abort the current dictation and discard the audio |
-| Model | Choose between 4-bit, 6-bit, and fp16 Voxtral variants |
+| Model | Choose between 6-bit and BF16 Voxtral Mini 4B Realtime variants |
 | Launch at login | Register with `SMAppService` |
 
 ## Development

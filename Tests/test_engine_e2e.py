@@ -14,7 +14,8 @@ import threading
 import time
 
 VENVPY = os.path.expanduser("~/Library/Application Support/Whistral/venv/bin/python")
-ENGINE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "whistral_engine.py")
+ENGINE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                      "Whistral", "Resources", "Engine", "whistral_engine.py")
 
 proc = subprocess.Popen(
     [VENVPY, ENGINE],
@@ -24,36 +25,32 @@ proc = subprocess.Popen(
     bufsize=0,
 )
 
-def send_cmd(obj):
-    payload = json.dumps(obj).encode()
-    proc.stdin.write(struct.pack("<I", len(payload)) + b"\x01" + payload)
+def send_frame(ftype, payload):
+    # length includes the 1-byte type (matches SidecarEngineClient.writeFrame)
+    proc.stdin.write(struct.pack("<I", len(payload) + 1) + bytes([ftype]) + payload)
     proc.stdin.flush()
 
+def send_cmd(obj):
+    send_frame(0x01, json.dumps(obj).encode())
+
 def send_audio(samples):
-    payload = struct.pack("<%df" % len(samples), *samples)
-    proc.stdin.write(struct.pack("<I", len(payload)) + b"\x02" + payload)
-    proc.stdin.flush()
+    send_frame(0x02, struct.pack("<%df" % len(samples), *samples))
 
 events = []
 reader_done = threading.Event()
 
 def reader():
-    fh = proc.stdout
-    while True:
-        hdr = fh.read(5)
-        if len(hdr) < 5:
-            break
-        (length,) = struct.unpack("<I", hdr[:4])
-        ftype = hdr[4]
-        body = fh.read(length)
-        if ftype == 0x01:
-            try:
-                ev = json.loads(body.decode())
-            except Exception:
-                ev = {"raw": body.decode(errors="replace")}
-            events.append(ev)
-            print("EVENT:", json.dumps(ev)[:400], flush=True)
-        # 0x02 frames (audio) shouldn't occur outbound
+    # Engine emits newline-delimited JSON on stdout.
+    for line in proc.stdout:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            ev = json.loads(line)
+        except Exception:
+            ev = {"raw": line[:400]}
+        events.append(ev)
+        print("EVENT:", json.dumps(ev)[:400], flush=True)
     reader_done.set()
 
 t = threading.Thread(target=reader, daemon=True)

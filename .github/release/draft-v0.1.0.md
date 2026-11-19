@@ -25,4 +25,4 @@ Requires an Apple Silicon Mac (M1 or newer, Intel not supported) on macOS 27.2 o
 
 **Download:** the `release` CI job on the `v0.1.0` tag builds the app with `scripts/package_release.sh` and verifies its version against the tag, so the artifact is always `Whistral-0.1.0.zip` — a forgotten version bump fails the job loudly. Grab the `Whistral-v0.1.0` artifact, unzip, move to Applications, and launch; onboarding walks you through permissions and the model download.
 
-**From source:** clone the repository, open `Whistral.xcodeproj` in Xcode 27.2 or newer, set your signing team, and build (`⌘R`). (Canonical repo URL to be added when published.)
+**From source:** `git clone https://github.com/ThriveEngineer/Whistral.git`, open `Whistral.xcodeproj` in Xcode 27.2 or newer, set your signing team, and build (`⌘R`).

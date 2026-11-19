@@ -154,5 +154,3 @@ Requires an Apple Silicon Mac (M1 or later) on macOS 27.2 or newer, ~4 GB of fre
   sole network call is the one-time model download from Hugging Face.
 - Session-token guards ensure transcription text can only ever be inserted
   from the session that produced it.
-
-<!-- Link definitions: add repository URLs once the project has a canonical remote. -->

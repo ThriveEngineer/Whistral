@@ -16,13 +16,22 @@ final class MenuBarStatusItemController: NSObject, NSMenuDelegate {
     private var hasInstalled = false
     private var menuIsOpen = false
 
-    func install() {
+    /// Set by AppDelegate at install time. We deliberately do not cast
+    /// `NSApp.delegate` to reach it: in a SwiftUI-lifecycle app
+    /// (`@NSApplicationDelegateAdaptor`) the app's `delegate` is a SwiftUI
+    /// proxy that forwards our delegate methods but defeats an `as?`
+    /// cast — which silently skipped status-item installation.
+    private weak var appDelegate: AppDelegate?
+
+    func install(_ appDelegate: AppDelegate) {
         guard !hasInstalled else { return }
-        guard let delegate = NSApp.delegate as? AppDelegate else { return }
+        self.appDelegate = appDelegate
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = item.button {
             button.image = Self.icon(isRecording: false)
+        } else {
+            NSLog("[Whistral] install(): status item button is nil")
         }
 
         let menu = NSMenu()
@@ -43,7 +52,7 @@ final class MenuBarStatusItemController: NSObject, NSMenuDelegate {
         item.isVisible = true
 
         // Build the initial content.
-        delegate.populateMenu(menu)
+        appDelegate.populateMenu(menu)
     }
 
     private static func icon(isRecording: Bool) -> NSImage? {
@@ -67,7 +76,7 @@ final class MenuBarStatusItemController: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
-        (NSApp.delegate as? AppDelegate)?.populateMenu(menu)
+        appDelegate?.populateMenu(menu)
     }
 
     // MARK: - Visibility

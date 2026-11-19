@@ -20,8 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let model = AppModel.shared
 
-        MenuBarStatusItemController.shared.install()
-        MenuBarStatusItemController.shared.setStatusIcon(isRecording: false)
+        MenuBarStatusItemController.shared.install(self)
 
         model.start()
 

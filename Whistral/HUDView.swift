@@ -56,7 +56,6 @@ struct HUDView: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.ultraThinMaterial)
         }
-        .shadow(color: .black.opacity(0.18), radius: 14, y: 5)
         .accessibilityElement(children: .combine)
     }
 

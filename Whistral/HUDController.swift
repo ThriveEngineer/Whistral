@@ -79,14 +79,14 @@ final class HUDController: NSObject, ObservableObject {
 
     private func makePanel() -> NSPanel {
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 120),
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 80),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.worksWhenModal = true
@@ -108,11 +108,7 @@ final class HUDController: NSObject, ObservableObject {
         self.panel = panel
 
         let hosting = panel.contentView as? NSHostingView<HUDView>
-        let size = hosting?.fittingSize ?? NSSize(width: 380, height: 120)
-        let contentSize = NSSize(
-            width: max(240, min(460, size.width)),
-            height: max(88, size.height)
-        )
+        let contentSize = hosting?.fittingSize ?? NSSize(width: 380, height: 80)
 
         // Anchor to the pointer once per appearance; subsequent updates only
         // resize (and only when the size actually changed) so the HUD doesn't

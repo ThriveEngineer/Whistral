@@ -132,6 +132,30 @@ private struct DictationPane: View {
                     }
                 }
             }
+
+            // ── Smart Correction ─────────────────────────────────────────
+            Section {
+                Toggle("Smart Correction", isOn: $settings.llmCorrection)
+                if settings.llmCorrection {
+                    if FoundationModelsCorrector.isAvailable {
+                        Picker("Style", selection: $settings.llmCorrectionStyle) {
+                            ForEach(CorrectionStyle.allCases) { style in
+                                Text(style.label).tag(style)
+                            }
+                        }
+                    } else {
+                        Label("On-device Foundation Model not available on this Mac.", systemImage: "exclamationmark.triangle")
+                            .font(.callout)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            } header: {
+                Text("Smart Correction")
+            } footer: {
+                Text("Uses Apple's on-device language model to remove filler words (uh, um...), resolve self-corrections (e.g. '10am, sorry I meant 11am' becomes '11am'), and clean up false starts. Runs entirely on-device -- nothing is sent to the cloud. Adds a brief delay after each dictation.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
     }

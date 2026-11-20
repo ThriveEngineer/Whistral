@@ -416,6 +416,36 @@ final class TranscriptionController: NSObject, ObservableObject {
             AppModel.shared.lastTranscript = trimmed
         }
 
+        // ── LLM correction (Apple Foundation Model, on-device) ─────────────
+        // When enabled, run the transcript through the on-device language
+        // model to remove fillers, resolve self-corrections ("I meant 11am"),
+        // and clean up false starts.  The HUD stays visible while the model
+        // runs.  Falls back to the raw transcript on any error.
+        if settings.llmCorrection, !trimmed.isEmpty, FoundationModelsCorrector.isAvailable {
+            Task { @MainActor in
+                // Safety: abort if a newer session started while we were
+                // scheduled (e.g. the user pressed the hotkey again fast).
+                guard self.sessionToken == token, !self.cancelled else { return }
+                self.hud.update(text: "✦ Cleaning up…")
+                let corrected = await FoundationModelsCorrector.correct(
+                    text: trimmed,
+                    style: self.settings.llmCorrectionStyle
+                )
+                // Re-check token after the await — a new session may have
+                // started during the async correction call.
+                guard self.sessionToken == token, !self.cancelled else { return }
+                self.deliverText(corrected, token: token)
+            }
+        } else {
+            deliverText(trimmed, token: token)
+        }
+    }
+
+    /// Performs the actual insertion/clipboard/HUD flow for a finalised,
+    /// optionally corrected transcript.  Called from `insertFinalText`.
+    private func deliverText(_ trimmed: String, token: Int) {
+        guard !cancelled, sessionToken == token else { resetToIdle(); return }
+
         var insertionFailed = false
         if settings.autoInsert, !trimmed.isEmpty {
             if Permissions.accessibility == .granted {

@@ -67,6 +67,8 @@ final class SettingsStore: ObservableObject {
         static let launchAtLogin = "launchAtLogin"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let soundFeedback = "soundFeedback"
+        static let llmCorrection = "llmCorrection"
+        static let llmCorrectionStyle = "llmCorrectionStyle"
     }
 
     // MARK: - Values
@@ -101,6 +103,14 @@ final class SettingsStore: ObservableObject {
     @Published var soundFeedback: Bool = true {
         didSet { defaults.set(soundFeedback, forKey: Key.soundFeedback); objectWillChange.send() }
     }
+    /// Run the on-device Foundation Model to fix grammar and misspeakings.
+    @Published var llmCorrection: Bool = false {
+        didSet { defaults.set(llmCorrection, forKey: Key.llmCorrection); objectWillChange.send() }
+    }
+    /// How aggressively the LLM should rewrite the transcript.
+    @Published var llmCorrectionStyle: CorrectionStyle = .natural {
+        didSet { defaults.set(llmCorrectionStyle.rawValue, forKey: Key.llmCorrectionStyle); objectWillChange.send() }
+    }
 
     // MARK: - Restore
 
@@ -116,6 +126,8 @@ final class SettingsStore: ObservableObject {
         launchAtLogin = defaults.object(forKey: Key.launchAtLogin) as? Bool ?? false
         hasCompletedOnboarding = defaults.object(forKey: Key.hasCompletedOnboarding) as? Bool ?? false
         soundFeedback = defaults.object(forKey: Key.soundFeedback) as? Bool ?? true
+        llmCorrection = defaults.object(forKey: Key.llmCorrection) as? Bool ?? false
+        llmCorrectionStyle = (defaults.string(forKey: Key.llmCorrectionStyle)).flatMap(CorrectionStyle.init) ?? .natural
     }
 
     // MARK: - Display

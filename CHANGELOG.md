@@ -54,6 +54,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mouse-accessible surface) was never created. The installer now receives
   the AppDelegate directly instead of digging it out of `NSApp.delegate`.
 
+## [0.1.1] — 2026-11-20
+
+### Fixed
+
+- **First-launch onboarding now reliably appears.** The welcome window was
+  created but could fail to surface, because Whistral is a menu-bar
+  (.accessory) app: showing the window didn't activate the app, so on a
+  clean first launch the "Welcome to Whistral" window stayed behind other
+  apps' windows (or appeared unactivated). The onboarding and Settings show
+  paths now explicitly activate the app and unhide it before bringing the
+  window frontmost, so the welcome flow reliably appears on first launch.
+
 ## [0.1.0] — first release
 
 _2026-11-19_

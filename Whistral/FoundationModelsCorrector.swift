@@ -5,13 +5,12 @@
 //  Post-processes raw Voxtral STT transcripts using the on-device Apple
 //  Foundation Model (macOS 26+). Runs entirely on-device -- no network.
 //
-//  Fully multilingual: supports German, Spanish, Arabic, English, French,
-//  Italian, Portuguese, Dutch, Chinese, Japanese, Russian, etc.
+//  Fully multilingual: English, German, Spanish, French, Italian, Portuguese,
+//  Arabic, Dutch, Korean, Japanese, Russian, Chinese, Turkish, and more.
 //
 //  Supports two modes:
 //    * Speed: low-latency, compact prompt for fast filler & self-correction removal
 //    * Quality: deep contextual analysis with cross-sentence resolution
-//
 
 import Foundation
 import FoundationModels
@@ -67,106 +66,234 @@ enum CorrectionStyle: String, CaseIterable, Identifiable {
         }
     }
 
+    // MARK: Speed Instructions
+
     private func speedInstructions() -> String {
+        // Shared self-correction examples used by all speed styles
+        let correctionExamples = """
+        Self-correction examples (apply same logic in ANY language):
+          "meet at 10? No wait, 11" -> "meet at 11"
+          "um 10? Nein warte, um 11" -> "um 11"
+          "a las 10? Perdón, a las 11" -> "a las 11"
+          "10h? Pardon, 11h" -> "11h"
+          "Let's call David -- sorry, I mean Michael" -> "Let's call Michael"
+          "send 5 copies, make that 10" -> "send 10 copies"
+          "في العاشرة؟ عفوا، في الحادية عشرة" -> "في الحادية عشرة"
+          "morgen? Ich meine, ich meinte ubermorgen" -> "ubermorgen"
+          "10시에? 아니, 잠깐, 11시에" -> "11시에"
+          "明天10点? 不对, 11点" -> "明天11点"
+        """
+
+        // Correction cue vocabulary (compact, inline)
+        let cueLine = """
+        Correction cues to detect: sorry/no wait/I mean/actually/make that (EN) | \
+        Entschuldigung/nein/warte/ich meine/ich meinte/warte mal/eigentlich/vielmehr/besser gesagt/korrigiere/ahm nein (DE) | \
+        perdon/no espera/espera/quise decir/digo/o sea/en realidad/me corrijo/es decir/a ver/o mejor dicho (ES) | \
+        pardon/non/plutot/je veux dire/je voulais dire/en fait/attends/je me reprends/c'est-a-dire/ou plutot (FR) | \
+        scusa/no aspetta/anzi no/intendevo/volevo dire/cioe/anzi/aspetta/mi correggo/o meglio (IT) | \
+        desculpa/quer dizer/alias/quis dizer/ou melhor/na verdade/espera/me corrijo/melhor dizendo (PT) | \
+        afwan/aqsid/la intazar/la bal/tas-hih/fi al-waqi (AR, transliterated) | \
+        sorry/ik bedoel/nee wacht/eigenlijk/of liever/beter gezegd (NL) | \
+        hayir bekle/yani/demek istedigim/ozur dilerim (TR) | \
+        net podojdite/ya imeyu v vidu/tochnee/vernee/net (RU, transliterated) | \
+        bu dui/wo de yi si shi/ying gai shi/jiu zheng yi xia (ZH, transliterated) | \
+        iya/sumimasen/tsumari/de wa naku/訂正/janakute (JA) | \
+        joesong/je mal eun/ani/jab-kan/jeong-hwal-hi-neun (KO, transliterated)
+        """
+
+        // Filler words (compact, inline)
+        let fillerLine = """
+        Filler words to silently remove: uh/um/er/ah/like/you know (EN) | \
+        ah/ahm/hm/halt/quasi/sozusagen/na ja (DE) | \
+        eh/em/este/bueno/o sea (ES) | \
+        euh/ben/genre/hein (FR) | \
+        ehm/cioe/tipo (IT) | \
+        e/tipo/ne (PT) | \
+        ya3ni/ah/im (AR) | \
+        uhm/eh/nou/zeg maar (NL) | \
+        eo/eum/geu/mwo/jeo (KO) | \
+        eto/nu/tak/vot/korotche (RU) | \
+        na ge/jiu shi/ran hou/zhe ge (ZH) | \
+        eto/ano/sono/nanka (JA) | \
+        sey/yani/iste (TR)
+        """
+
         switch self {
         case .clean:
             return """
             You are a fast multilingual dictation cleaner.
-            Process transcripts in their ORIGINAL language (German, Spanish, Arabic, English, French, Italian, etc.).
+            Process transcripts in their ORIGINAL language (German, Spanish, Arabic, English, French, Italian, Dutch, Japanese, Korean, Russian, Chinese, Turkish, etc.).
             CRITICAL: NEVER translate. Always keep and output the EXACT same language as the input.
 
-            1. SELF-CORRECTIONS: When the speaker amends or corrects a previous word/phrase within or across sentences (e.g. "at 10? Sorry, 11" -> "at 11?", "um 10? Nein warte, um 11" -> "um 11?", "a las 10? Perdón, a las 11" -> "a las 11?", "في العاشرة؟ عفوا، في الحادية عشرة" -> "في الحادية عشرة"), keep ONLY the corrected statement and silently drop the mistake and correction cue.
-            2. FILLERS: Silently remove spoken filler words in any language (uh, um, like / äh, ähm, halt / eh, em, este / euh / يعني).
+            1. SELF-CORRECTIONS: When the speaker corrects a previous word/phrase (within or across sentences), keep ONLY the corrected statement. Drop the mistake and correction cue.
+            \(correctionExamples)
+            \(cueLine)
+
+            2. FILLERS: Silently remove spoken filler words in any language.
+            \(fillerLine)
+
             3. REPETITIONS: Remove duplicate adjacent words.
+
             Output ONLY the cleaned text in the input language. Never add commentary or quotes.
             """
         case .natural:
             return """
             You are a fast multilingual dictation cleaner and proofreader.
-            Process transcripts in their ORIGINAL language (German, Spanish, Arabic, English, French, Italian, etc.).
+            Process transcripts in their ORIGINAL language (German, Spanish, Arabic, English, French, Italian, Dutch, Japanese, Korean, Russian, Chinese, Turkish, etc.).
             CRITICAL: NEVER translate. Always keep and output the EXACT same language as the input.
 
-            1. SELF-CORRECTIONS: When the speaker amends or corrects a previous word/phrase within or across sentences (e.g. "at 10? Sorry, 11" -> "at 11?", "um 10? Nein warte, um 11" -> "um 11?", "a las 10? Perdón, a las 11" -> "a las 11?", "في العاشرة؟ عفوا، في الحادية عشرة" -> "في الحادية عشرة"), keep ONLY the corrected statement and silently drop the mistake and correction cue.
-            2. FILLERS: Silently remove spoken filler words in any language (uh, um, like / äh, ähm, halt / eh, em, este / euh / يعني).
+            1. SELF-CORRECTIONS: When the speaker corrects a previous word/phrase (within or across sentences), keep ONLY the corrected statement. Drop the mistake and correction cue.
+            \(correctionExamples)
+            \(cueLine)
+
+            2. FILLERS: Silently remove spoken filler words in any language.
+            \(fillerLine)
+
             3. REPETITIONS: Remove duplicate adjacent words.
             4. PUNCTUATION & GRAMMAR: Fix basic punctuation and capitalization according to the rules of the input language.
+
             Output ONLY the cleaned text in the input language. Never add commentary or quotes.
             """
         case .polished:
             return """
             You are a fast multilingual dictation editor.
-            Process transcripts in their ORIGINAL language (German, Spanish, Arabic, English, French, Italian, etc.).
+            Process transcripts in their ORIGINAL language (German, Spanish, Arabic, English, French, Italian, Dutch, Japanese, Korean, Russian, Chinese, Turkish, etc.).
             CRITICAL: NEVER translate. Always keep and output the EXACT same language as the input.
 
-            1. SELF-CORRECTIONS: Replace self-corrections keeping only the final corrected statement.
-            2. FILLERS: Remove filler words and repetitions in any language.
+            1. SELF-CORRECTIONS: When the speaker corrects themselves, keep ONLY the final corrected statement. Drop the mistake and cue.
+            \(correctionExamples)
+            \(cueLine)
+
+            2. FILLERS: Remove all spoken filler words and repetitions.
+            \(fillerLine)
+
             3. REPHRASE: Rephrase smoothly into clear, natural prose while strictly preserving the input language, tone, and facts.
+
             Output ONLY the polished text in the input language. Never add commentary or quotes.
             """
         }
     }
 
+    // MARK: Quality Instructions
+
     private func qualityInstructions() -> String {
         let core = """
         You are a multilingual dictation post-processor. \
-        You process speech-to-text transcripts in ANY language (including German, Spanish, Arabic, English, French, Italian, Portuguese, Dutch, Chinese, Japanese, Russian, etc.).
+        You process speech-to-text transcripts in ANY language \
+        (English, German, Spanish, French, Italian, Portuguese, Arabic, Dutch, Korean, Japanese, Russian, Chinese, Turkish, Swedish, Danish, Norwegian, etc.).
 
         === CRITICAL LANGUAGE RULE ===
         Always output in the EXACT SAME LANGUAGE as the input transcript. \
         NEVER translate the transcript into another language. \
-        If the input is in German, output in German. If in Spanish, output in Spanish. If in Arabic, output in Arabic.
+        If the input is German, output German. If Spanish, output Spanish. If Arabic, output Arabic. If Korean, output Korean.
 
         === RULE 1: SELF-CORRECTIONS (ALL LANGUAGES, HIGHEST PRIORITY) ===
-        Speakers frequently correct themselves mid-speech. \
-        When they do, keep ONLY the corrected version -- \
-        silently replace the mistake with the correction and \
-        remove all correction language from the final text.
+        Speakers frequently correct themselves mid-speech, both WITHIN a sentence and ACROSS sentence boundaries \
+        (correction cue can follow a period or question mark as a new sentence). \
+        When a correction occurs: keep ONLY the corrected version -- silently replace the mistake with the correction \
+        and remove all correction language from the final text.
 
-        This applies WITHIN a sentence and ACROSS sentence boundaries \
-        (e.g., when the correction follows a period or question mark).
-
-        Recognize correction indicators in any language:
-        - English: "sorry", "oh sorry", "I mean", "I meant", "actually", "no wait", "make that", "rather"
-        - German: "Entschuldigung", "sorry", "ich meine", "ich meinte", "nein warte", "warte", "eigentlich", "besser gesagt", "oder", "bzw."
-        - Spanish: "perdón", "disculpe", "quise decir", "digo", "o sea", "en realidad", "no espera", "mejor"
-        - French: "pardon", "désolé", "je veux dire", "je voulais dire", "en fait", "attends"
-        - Italian: "scusa", "intendevo", "volevo dire", "cioè", "anzi", "aspetta"
-        - Portuguese: "desculpa", "quis dizer", "ou melhor", "na verdade", "espera"
-        - Arabic: "عفواً", "أقصد", "أعني", "بل", "لا انتظر", "قصدي"
+        CORRECTION CUES BY LANGUAGE:
+        - English:    "sorry", "oh sorry", "I mean", "I meant", "actually", "no wait", "no, wait", "make that", "rather", "or rather", "correction", "let me rephrase"
+        - German:     "Entschuldigung", "sorry", "ich meine", "ich meinte", "ich meinte zu sagen", "nein", "nein warte", "warte", "warte mal", "eigentlich", "vielmehr", "besser gesagt", "oder", "bzw.", "korrektur", "das war falsch", "ahm nein", "korrigiere mich"
+        - Spanish:    "perdon", "disculpe", "quise decir", "digo", "o sea", "en realidad", "no espera", "espera", "mejor", "a ver", "o mejor dicho", "no", "correccion", "me corrijo", "quiero decir", "diria mejor", "es decir"
+        - French:     "pardon", "desole", "je veux dire", "je voulais dire", "en fait", "attends", "non", "plutot", "enfin", "correction", "je me reprends", "j'entends", "c'est-a-dire", "ou plutot", "veux mieux dire"
+        - Italian:    "scusa", "intendevo", "volevo dire", "cioe", "anzi", "aspetta", "no aspetta", "anzi no", "mi correggo", "voglio dire", "piuttosto", "o meglio", "per essere preciso"
+        - Portuguese: "desculpa", "quis dizer", "ou melhor", "na verdade", "espera", "quer dizer", "alias", "na verdade nao", "me corrijo", "melhor dizendo", "quero dizer"
+        - Arabic:     "afwan / عفواً", "aqsid / أقصد", "a3ni / أعني", "bal / بل", "la intazar / لا انتظر", "qasdi / قصدي", "tas-hih / تصحيح", "la bal / لا بل", "aqsid an aqul / اقصد ان اقول", "fi al-waqi3 / في الواقع", "bima3na as-sah / بمعنى أصح"
+        - Dutch:      "sorry", "ik bedoel", "nee wacht", "eigenlijk", "of liever", "beter gezegd", "nee", "wacht even", "of eigenlijk", "bedoel ik"
+        - Korean:     "joesong / 죄송합니다", "je mal eun / 제 말은", "ani / 아니", "ani yo jab-kan / 아니요 잠깐", "jeong-hwal-hi-neun / 정확히는", "anicul", "dasi malhamyeon"
+        - Japanese:   "iya / いや", "sumimasen / すみません", "tsumari / つまり", "de wa naku / ではなく", "tei-sei / 訂正します", "janakute / じゃなくて", "nani shiro", "to iu ka"
+        - Russian:    "net / нет", "podojdite / подождите", "ya imeyu v vidu / я имею в виду", "tochnee / точнее", "vernee / вернее", "ispravlyus / исправляюсь", "to est / то есть", "eto nepravilno"
+        - Chinese:    "bu dui / 不对", "wo de yi si shi / 我的意思是", "ying gai shi / 应该是", "jiu zheng yi xia / 纠正一下", "bushi / 不是", "wo xiang shuo de shi / 我想说的是"
+        - Turkish:    "hayir bekle / hayır bekle", "yani", "demek istedigim / demek istediğim", "ozur dilerim / özür dilerim", "daha dogrusu", "aslinda", "yani aslinda"
         - And equivalent correction patterns in any other language.
 
-        Multilingual Examples:
-          In:  "Can we do a meeting tomorrow at 10? Oh, sorry, I meant 11 a.m."
-          Out: "Can we do a meeting tomorrow at 11 a.m.?"
+        MULTILINGUAL CROSS-SENTENCE EXAMPLES:
+          In:  "Can we meet tomorrow at 10? Oh, sorry, I meant 11 a.m."
+          Out: "Can we meet tomorrow at 11 a.m.?"
 
-          In:  "Können wir uns morgen um 10 treffen? Oh sorry, ich meinte 11 Uhr."
-          Out: "Können wir uns morgen um 11 Uhr treffen?"
+          In:  "Konnen wir uns morgen um 10 treffen? Oh sorry, ich meinte 11 Uhr."
+          Out: "Konnen wir uns morgen um 11 Uhr treffen?"
 
-          In:  "Hallo können wir uns morgen treffen? Nein warte, übermorgen."
-          Out: "Hallo, können wir uns übermorgen treffen?"
+          In:  "Hallo konnen wir uns morgen treffen? Nein warte, ubermorgen."
+          Out: "Hallo, konnen wir uns ubermorgen treffen?"
 
-          In:  "Hola podemos vernos mañana a las 3? Perdón, quise decir a las 4."
-          Out: "Hola, ¿podemos vernos mañana a las 4?"
+          In:  "Hola podemos vernos manana a las 3? Perdon, quise decir a las 4."
+          Out: "Hola, podemos vernos manana a las 4?"
 
-          In:  "On se voit demain à 14h? Pardon, je voulais dire 15h."
-          Out: "On se voit demain à 15h."
+          In:  "On se voit demain a 14h? Pardon, je voulais dire 15h."
+          Out: "On se voit demain a 15h."
 
-          In:  "هل يمكننا عقد اجتماع غدا في العاشرة؟ عفوا، قصدت الحادية عشرة."
-          Out: "هل يمكننا عقد اجتماع غدا في الحادية عشرة؟"
+          In:  "Domani alle 10? Aspetta, intendevo alle 11."
+          Out: "Domani alle 11."
+
+          In:  "Amanha as 10? Ou melhor, as 11."
+          Out: "Amanha as 11."
+
+          In:  "Morgen om 10 uur? Nee wacht, 11 uur."
+          Out: "Morgen om 11 uur."
+
+          In:  "Yarin saat 10'da? Hayir bekle, 11'de."
+          Out: "Yarin saat 11'de."
+
+          In:  "Zavtra v 10? Net, podojdite, v 11."
+          Out: "Zavtra v 11."
+
+          In:  "Ashita 10ji ni? Iya, 11ji ni."
+          Out: "Ashita 11ji ni."
+
+          In:  "Naeil 10si e? Ani jamkkan, 11si e."
+          Out: "Naeil 11si e."
+
+          In:  "Mingtian shidian? Bu dui, shiyidian."
+          Out: "Mingtian shiyidian."
+
+          In:  "hal yumkinuna 3aqd ijtima3 ghadan fi al-3ashira? 3afwan, qasadtu al-hadiya 3ashira."
+          Out: "hal yumkinuna 3aqd ijtima3 ghadan fi al-hadiya 3ashira?"
+
+          In:  "Let's call David -- sorry, I mean Michael."
+          Out: "Let's call Michael."
+
+          In:  "Ruf David an -- nein, ich meine Michael."
+          Out: "Ruf Michael an."
+
+          In:  "Send 5 copies, make that 10."
+          Out: "Send 10 copies."
+
+          In:  "Let's meet at -- no wait, let's meet at 4."
+          Out: "Let's meet at 4."
+
+          In:  "The report is due Friday -- actually, Thursday."
+          Out: "The report is due Thursday."
+
+          In:  "Schick mir funf -- nein, schick mir zehn Exemplare."
+          Out: "Schick mir zehn Exemplare."
 
         === RULE 2: FILLER WORDS (ALL LANGUAGES) ===
         Silently remove spoken fillers in any language:
-        - English: uh, uhh, um, umm, er, ah, like (when filler), you know, so (at start of sentence), basically, literally
-        - German: äh, ähm, hm, halt, quasi, sozusagen, na ja, also (at start of sentence)
-        - Spanish: eh, em, este, o sea, bueno (at start of sentence)
-        - French: euh, ben, genre, hein, voilà
-        - Italian: ehm, cioè, tipo
-        - Portuguese: é, tipo, né
-        - Arabic: يعني, آه, إم
+        - English:    uh, uhh, um, umm, er, ah, like (filler use), you know, so (sentence-start filler), basically, literally, right (filler)
+        - German:     ah, ahm, hm, halt, quasi, sozusagen, na ja, also (sentence-start filler), ne, nicht wahr (filler tag)
+        - Spanish:    eh, em, este, o sea (filler), bueno (sentence-start filler), sabes, verdad (filler tag)
+        - French:     euh, ben, genre, hein, voila, quoi (sentence-end filler), enfin (filler)
+        - Italian:    ehm, cioe (filler), tipo, boh
+        - Portuguese: e, tipo, ne, pronto (filler)
+        - Arabic:     ya3ni / يعني, ah / آه, im / إم, keda / كده (Egyptian filler)
+        - Dutch:      uhm, eh, nou, zeg maar, eigenlijk (filler), gewoon (filler)
+        - Korean:     eo / 어, eum / 음, geu / 그, mwo / 뭐, jeo / 저 (hesitation)
+        - Japanese:   eto / えーと, ano / あの, sono / その, nanka / なんか, ma / まあ
+        - Russian:    em / эм, nu / ну, tak / так, vot / вот, korotche / короче, znachit / значит
+        - Chinese:    na ge / 那个, jiu shi / 就是, ran hou / 然后, zhe ge / 这个, ni zhi dao / 你知道
+        - Turkish:    sey / şey, yani (filler), iste / işte, hani
+        - Swedish:    ah, ehm, liksom, asså
+        - Norwegian:  eh, ehm, liksom, asså
+        - Danish:     øh, altså (filler), ligesom
         - And natural vocal hesitations in any other language.
 
         === RULE 3: FALSE STARTS & REPETITIONS ===
         Remove aborted sentence restarts and duplicate adjacent words in any language.
+        Example: "I want I want to say that" -> "I want to say that"
+        Example: "Ich ich habe das gesagt" -> "Ich habe das gesagt"
 
         === ABSOLUTE CONSTRAINTS ===
         - NEVER translate into English or any other language. Always keep the input language.
@@ -192,8 +319,8 @@ enum CorrectionStyle: String, CaseIterable, Identifiable {
         === STYLE: NATURAL ===
         After applying Rules 1-3:
         - Fix obvious grammar and spelling mistakes in the transcript's language.
-        - Add missing punctuation (commas, periods, question marks).
-        - Capitalise properly according to the rules of the language.
+        - Add missing punctuation (commas, periods, question marks) according to the input language's conventions.
+        - Capitalise properly according to the rules of the language (e.g. German nouns, Arabic no capitalisation system, Korean/Japanese no case).
         - Preserve vocabulary and tone. Do not translate.
         """
 

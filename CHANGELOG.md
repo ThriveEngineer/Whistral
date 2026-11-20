@@ -54,6 +54,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mouse-accessible surface) was never created. The installer now receives
   the AppDelegate directly instead of digging it out of `NSApp.delegate`.
 
+## [0.2.1] — 2026-11-20
+
+### Fixed
+
+- **Multilingual Smart Correction across all languages.** Smart Correction
+  now works seamlessly in German, Spanish, Arabic, French, Italian,
+  Portuguese, Dutch, Chinese, Japanese, Russian, and all other languages.
+  Language retention is strictly enforced to prevent unexpected translation
+  to English.
+- **Multilingual self-corrections and fillers.** Added native recognition
+  for foreign self-correction cues (e.g. German *"ich meinte"*, *"nein warte"*,
+  Spanish *"perdón"*, *"quise decir"*, Arabic *"عفواً"*, *"أقصد"*) and
+  conversational filler words (*äh*, *ähm*, *eh*, *este*, *يعني*, etc.).
+
 ## [0.2.0] — 2026-11-20
 
 ### Added

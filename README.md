@@ -58,7 +58,20 @@ model loads in about 1 s once cached — a first-ever launch downloads the
 ~3.9 GB model first. To rerun the benchmark yourself, see
 [Tests/perf-report.md](Tests/perf-report.md) and `python3 Tests/bench_latency.py`.
 
-## Install / Build
+## Installation
+
+### Via Homebrew (Recommended)
+
+```sh
+brew tap ThriveEngineer/whistral https://github.com/ThriveEngineer/Whistral
+brew install --cask whistral
+```
+
+### Direct Download
+
+Download the latest release archive (`Whistral-0.3.1.zip`) from [GitHub Releases](https://github.com/ThriveEngineer/Whistral/releases/latest), unpack it, and drag `Whistral.app` to `/Applications`.
+
+## Build from Source
 
 1. Clone this repository.
 2. Open `Whistral.xcodeproj` in Xcode and press **Run**, or build from the

@@ -2,8 +2,8 @@
 //  HUDController.swift
 //  Whistral
 //
-//  The floating dictation HUD: a small, non-activating panel with a live
-//  waveform and the transcription in progress, positioned near the pointer.
+//  The floating dictation HUD: a compact pill anchored at the bottom-centre
+//  of the screen, showing only the waveform, spinner, or clean-up icon.
 //
 
 import AppKit
@@ -79,7 +79,7 @@ final class HUDController: NSObject, ObservableObject {
 
     private func makePanel() -> NSPanel {
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 80),
+            contentRect: NSRect(x: 0, y: 0, width: 120, height: 40),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -142,22 +142,13 @@ final class HUDController: NSObject, ObservableObject {
         }
     }
 
-    /// Place the HUD just below and to the right of the pointer, inside the
-    /// visible frame of the screen it belongs to.
+    /// Place the HUD at the horizontal centre of the main screen, just above
+    /// the Dock (or bottom edge when no Dock is visible).
     private func anchorPoint(preferredSize: NSSize) -> NSPoint {
-        var mouse = NSEvent.mouseLocation
-        if !NSScreen.screens.contains(where: { $0.frame.contains(mouse) }) {
-            mouse = NSEvent.mouseLocation // still keep the value; clamp below
-        }
-        let screen = NSScreen.screens.first { $0.frame.contains(mouse) }
-            ?? NSScreen.main
-            ?? NSScreen.screens[0]
+        let screen = NSScreen.main ?? NSScreen.screens[0]
         let visible = screen.visibleFrame
-
-        var x = mouse.x + 16
-        var y = mouse.y - preferredSize.height - 18
-        x = min(max(x, visible.minX + 8), visible.maxX - preferredSize.width - 8)
-        y = min(max(y, visible.minY + 8), visible.maxY - preferredSize.height - 8)
+        let x = visible.midX - preferredSize.width / 2
+        let y = visible.minY + 24   // 24 pt above Dock / bottom edge
         return NSPoint(x: x, y: y)
     }
 

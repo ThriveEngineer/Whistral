@@ -27,10 +27,14 @@ final class HUDController: NSObject, ObservableObject {
     /// knows it must restart the fade-in from transparent.
     private var isFadingOut = false
 
+    /// Fixed geometry for the compact pill.
+    static let pillSize = NSSize(width: 72, height: 38)
+
     enum HUDPhase {
         case hidden
         case listening
         case transcribing
+        case cleaning
     }
 
     // MARK: - Show / update / hide
@@ -43,13 +47,19 @@ final class HUDController: NSObject, ObservableObject {
 
     func update(text: String) {
         partialText = text
-        if phase == .listening {
-            presentPanel() // resize for content, without re-anchoring
+        if text.localizedCaseInsensitiveContains("clean") {
+            phase = .cleaning
+            presentPanel()
         }
     }
 
     func showTranscribing() {
         phase = .transcribing
+        presentPanel()
+    }
+
+    func showCleaning() {
+        phase = .cleaning
         presentPanel()
     }
 
@@ -79,7 +89,7 @@ final class HUDController: NSObject, ObservableObject {
 
     private func makePanel() -> NSPanel {
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 120, height: 40),
+            contentRect: NSRect(origin: .zero, size: Self.pillSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -96,7 +106,6 @@ final class HUDController: NSObject, ObservableObject {
 
         let rootView = HUDView(controller: self)
         let hosting = NSHostingView(rootView: rootView)
-        hosting.sizingOptions = [.preferredContentSize]
         panel.contentView = hosting
         panel.setAccessibilityElement(true)
         panel.setAccessibilityLabel("Whistral dictation")
@@ -107,25 +116,14 @@ final class HUDController: NSObject, ObservableObject {
         let panel = self.panel ?? makePanel()
         self.panel = panel
 
-        let hosting = panel.contentView as? NSHostingView<HUDView>
-        let contentSize = hosting?.fittingSize ?? NSSize(width: 100, height: 40)
+        let size = Self.pillSize
+        let origin = anchorPoint(preferredSize: size)
+        let targetFrame = NSRect(origin: origin, size: size)
 
-        // Anchor to the pointer once per appearance; subsequent updates only
-        // resize (and only when the size actually changed) so the HUD doesn't
-        // visibly chase the mouse while dictating.
-        let newFrame = NSRect(origin: anchorPoint(preferredSize: contentSize), size: contentSize)
-        let currentFrame = panel.frame
+        panel.setFrame(targetFrame, display: false)
+
         if !panel.isVisible || anchorFresh {
-            // Fresh appearance, or an appearance while a previous hide's
-            // fade-out is still in flight (the panel is technically still
-            // visible until its completion orders it out): bump the
-            // generation so that STALE hide completion no-ops. Always refresh
-            // content size and anchor here, but only restart the fade-in
-            // from transparent when the panel is not already fully visible —
-            // re-animating alpha on a visible panel would visibly blink it.
             generation += 1
-            panel.setContentSize(contentSize)
-            panel.setFrameOrigin(newFrame.origin)
             if !panel.isVisible || isFadingOut {
                 isFadingOut = false
                 panel.alphaValue = 0
@@ -136,31 +134,29 @@ final class HUDController: NSObject, ObservableObject {
                     panel.animator().alphaValue = 1
                 }
             }
-        } else if abs(currentFrame.size.width - contentSize.width) > 0.5
-                    || abs(currentFrame.size.height - contentSize.height) > 0.5 {
-            panel.setContentSize(contentSize)
         }
     }
 
     /// Place the HUD at the horizontal centre of the screen containing the
-    /// cursor, comfortably above the Dock / bottom edge.
+    /// cursor, safely floating above the Dock / bottom edge.
     private func anchorPoint(preferredSize: NSSize) -> NSPoint {
-        // Use the screen the cursor is on; fall back to the menu-bar screen.
-        let mouse  = NSEvent.mouseLocation
+        let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { $0.frame.contains(mouse) }
                      ?? NSScreen.main
                      ?? NSScreen.screens[0]
         let visible = screen.visibleFrame
 
-        // Centre horizontally; place bottom edge 32 pt above the visible-frame
-        // minimum (above the Dock).  Clamp so the whole pill stays on-screen.
-        let margin: CGFloat = 32
-        var x = visible.midX - preferredSize.width  / 2
+        // Centre horizontally within the visible frame
+        var x = visible.midX - preferredSize.width / 2
+
+        // Float 56 pt above the bottom edge / Dock so it never clips or overlaps
+        let margin: CGFloat = 56
         var y = visible.minY + margin
 
-        // Hard-clamp: never let any edge escape the visible frame.
-        x = min(max(x, visible.minX + 8), visible.maxX - preferredSize.width  - 8)
-        y = min(max(y, visible.minY + 8), visible.maxY - preferredSize.height - 8)
+        // Hard-clamp: guarantee the entire pill stays on-screen
+        x = min(max(x, visible.minX + 16), visible.maxX - preferredSize.width - 16)
+        y = min(max(y, visible.minY + 16), visible.maxY - preferredSize.height - 16)
+
         return NSPoint(x: x, y: y)
     }
 

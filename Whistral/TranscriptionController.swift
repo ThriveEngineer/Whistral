@@ -432,7 +432,8 @@ final class TranscriptionController: NSObject, ObservableObject {
                 // Safety: abort if a newer session started while we were
                 // scheduled (e.g. the user pressed the hotkey again fast).
                 guard self.sessionToken == token, !self.cancelled else { return }
-                let status = self.settings.llmCorrectionMode == .speed ? "✦ Quick clean…" : "✦ Cleaning up…"
+                self.hud.showCleaning()
+                let status = self.settings.llmCorrectionMode == .speed ? "Quick clean…" : "Cleaning up…"
                 self.hud.update(text: status)
                 let corrected = await FoundationModelsCorrector.correct(
                     text: trimmed,

@@ -55,10 +55,6 @@ struct HUDView: View {
         .background {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.ultraThinMaterial)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(.separator.opacity(0.35), lineWidth: 0.5)
-                }
         }
         .shadow(color: .black.opacity(0.18), radius: 14, y: 5)
         .accessibilityElement(children: .combine)

@@ -54,6 +54,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mouse-accessible surface) was never created. The installer now receives
   the AppDelegate directly instead of digging it out of `NSApp.delegate`.
 
+## [0.3.0] — 2026-11-20
+
+### Added
+
+- **In-App Update Checker:** Background check for new releases via GitHub Releases API, with an update download button appearing in the menu bar and Settings window (banner & About tab).
+- **Deepened Multilingual Self-Correction & Cross-Sentence Resolution:** Expanded speech slip recognition across 13 languages (English, German, Spanish, French, Italian, Portuguese, Arabic, Dutch, Korean, Japanese, Russian, Chinese, Turkish) with cross-sentence context resolution (dates, names, reasons).
+- **Intent Preservation Safeguards:** Dedicated rules ensuring genuine apologies, additive statements, and intentional contrasts are strictly preserved and never accidentally stripped.
+
+### Changed
+
+- **Apple HIG-Native Dictation HUD:** Redesigned the floating HUD to strictly adhere to Apple's Human Interface Guidelines for transient feedback panels.
+- **Borderless Glassmorphism:** Removed the distracting grey outline/border around the HUD, adopting a clean, borderless `.ultraThinMaterial` surface with subtle system shadows.
+- **System Components:** Replaced custom decorations and animations with native SF Symbols (`mic.fill`), native indeterminate `ProgressView()`, and `⎋ Esc` keycap indicator.
+
 ## [0.2.1] — 2026-11-20
 
 ### Fixed

@@ -36,7 +36,7 @@ final class UpdateChecker: ObservableObject {
     @Published private(set) var checkError: String?
 
     var currentVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.1"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.3.0"
     }
 
     // MARK: - Check

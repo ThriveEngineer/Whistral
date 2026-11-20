@@ -53,25 +53,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Release version is 0.2.1 everywhere it is stamped
+      - name: Release version is 0.3.0 everywhere it is stamped
         run: |
           set -euo pipefail
           cpproj="Whistral.xcodeproj/project.xcproj"
           version="$(grep -oE '"MARKETING_VERSION"[[:space:]]*:[[:space:]]*"[^"]+"' "$cpproj" | head -n 1 | sed -E 's/.*"([^"]+)"$/\1/')"
-          if [[ "$version" != "0.2.1" ]]; then
-            echo "::error::MARKETING_VERSION in $cpproj is '$version', expected 0.2.1 — bump it together with the CHANGELOG and release draft" >&2
+          if [[ "$version" != "0.3.0" ]]; then
+            echo "::error::MARKETING_VERSION in $cpproj is '$version', expected 0.3.0 — bump it together with the CHANGELOG and release draft" >&2
+            exit 1
+          fi
+          if ! grep -q "## \[0.3.0\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no [0.3.0] section" >&2
             exit 1
           fi
           if ! grep -q "## \[0.2.1\]" CHANGELOG.md; then
             echo "::error::CHANGELOG.md has no [0.2.1] section" >&2
             exit 1
           fi
-          if ! grep -q "## \[0.2.0\]" CHANGELOG.md; then
-            echo "::error::CHANGELOG.md has no [0.2.0] section" >&2
-            exit 1
-          fi
-          if ! grep -q "Whistral 0.2.1" .github/release/draft-v0.2.1.md; then
-            echo "::error::.github/release/draft-v0.2.1.md has no release heading" >&2
+          if ! grep -q "Whistral 0.3.0" .github/release/draft-v0.3.0.md; then
+            echo "::error::.github/release/draft-v0.3.0.md has no release heading" >&2
             exit 1
           fi
 

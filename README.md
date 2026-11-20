@@ -17,17 +17,24 @@ No audio, text, or telemetry ever leaves your Mac.
 
 - **Push-to-talk or toggle dictation** — a global shortcut (default ⌥Space)
   works system-wide, in any app.
-- **Smart on-device correction** — uses Apple's Foundation Model to clean up
-  fillers (*uh*, *um*, *like*), resolve spoken self-corrections (e.g. *"meet at 10,
-  sorry I meant 11am"* → *"meet at 11am"*), and fix grammar automatically.
+- **Multilingual Smart Correction & Cross-Sentence Resolution** — uses Apple's
+  on-device Foundation Model to eliminate fillers (*uh*, *um*, *like* / *äh*, *ähm* /
+  *eh*, *este* / *يعني*), accurately resolve cross-sentence self-corrections
+  (e.g. *"meet at 10, sorry I meant 11am"* → *"meet at 11am"*, *"Können wir uns morgen treffen? Nein warte, übermorgen"* → *"Können wir uns übermorgen treffen?"*),
+  while preserving real intent (apologies, additions, and intentional phrasing).
 - **Speed vs. Quality presets** — choose between Speed (Fast) and Quality
   (Accurate) for both speech recognition lookahead and LLM post-processing.
-- **Completely local** — speech recognition (Voxtral on MLX) and smart correction
-  (Apple Foundation Model) run 100% on your Mac; nothing is uploaded anywhere.
-- **Live partial results** — a floating HUD near your cursor shows a waveform
-  and streaming text while you speak.
-- **13 languages** — Voxtral's multilingual ASR automatically handles the
-  language you speak.
+- **In-app update checking** — automatically detects new releases via GitHub
+  Releases in the background, surfacing a one-click download button in the menu
+  bar and Settings.
+- **Completely local & private** — speech recognition (Voxtral on MLX) and smart correction
+  (Apple Foundation Model) run 100% on your Mac; audio is never uploaded.
+- **Apple HIG-native borderless HUD** — a lightweight, non-intrusive floating
+  overlay near your cursor shows live audio levels and streaming text using native
+  macOS materials, typography, and standard system controls.
+- **13 languages** — Voxtral's multilingual ASR and the smart corrector seamlessly
+  process English, German, Spanish, French, Italian, Portuguese, Arabic, Dutch,
+  Korean, Japanese, Russian, Chinese, and Turkish.
 - **Smart insert** — transcribed text lands in the focused text field via a
   paste that briefly borrows, then restores, your clipboard; a synthetic
   keystroke mode is available for apps that dislike synthetic pastes.
@@ -93,7 +100,8 @@ model loads in about 1 s once cached — a first-ever launch downloads the
 - The model weights and the embedded Python engine are stored locally under
   `~/Library/Application Support/Whistral/`.
 - No network calls except the one-time model download from
-  [Hugging Face](https://huggingface.co/mlx-community/Voxtral-Mini-4B-Realtime-6bit).
+  [Hugging Face](https://huggingface.co/mlx-community/Voxtral-Mini-4B-Realtime-6bit)
+  and the background version check to GitHub Releases.
 
 ## Settings
 
@@ -108,6 +116,7 @@ model loads in about 1 s once cached — a first-ever launch downloads the
 | Correction Style | Clean (fillers & corrections only), Natural (default: fixes grammar), Polished |
 | Recognition Preset | Speed (240 ms), Medium (480 ms default), Quality (720 ms), or Custom |
 | Transcription delay | Fine-tune streaming lookahead delay (80 ms–2400 ms) |
+| Updates | Automatic background update checking and manual Check for Updates |
 | Sound feedback | Subtle system sounds when dictation starts and finishes |
 | Cancel with Esc | Hardwired: pressing Esc cancels the current dictation |
 | Model | Voxtral Mini 4B Realtime — 6-bit (default) or BF16 (original) |

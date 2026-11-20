@@ -45,6 +45,7 @@ enum InsertionMethod: String, CaseIterable, Identifiable {
 
 enum VoxtralMode: String, CaseIterable, Identifiable {
     case speed = "speed"
+    case medium = "medium"
     case quality = "quality"
     case custom = "custom"
 
@@ -53,6 +54,7 @@ enum VoxtralMode: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .speed:   return "Speed (Fast) -- 240 ms delay"
+        case .medium:  return "Medium -- 480 ms delay"
         case .quality: return "Quality (Accurate) -- 720 ms delay"
         case .custom:  return "Custom"
         }
@@ -122,7 +124,7 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(soundFeedback, forKey: Key.soundFeedback); objectWillChange.send() }
     }
     /// Run the on-device Foundation Model to fix grammar and misspeakings.
-    @Published var llmCorrection: Bool = false {
+    @Published var llmCorrection: Bool = true {
         didSet { defaults.set(llmCorrection, forKey: Key.llmCorrection); objectWillChange.send() }
     }
     /// How aggressively the LLM should rewrite the transcript.
@@ -134,7 +136,7 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(llmCorrectionMode.rawValue, forKey: Key.llmCorrectionMode); objectWillChange.send() }
     }
     /// Speed vs Quality preset for Voxtral speech-to-text.
-    @Published var voxtralMode: VoxtralMode = .quality {
+    @Published var voxtralMode: VoxtralMode = .medium {
         didSet { defaults.set(voxtralMode.rawValue, forKey: Key.voxtralMode); objectWillChange.send() }
     }
 
@@ -143,6 +145,8 @@ final class SettingsStore: ObservableObject {
         switch mode {
         case .speed:
             transcriptionDelayMs = 240
+        case .medium:
+            transcriptionDelayMs = 480
         case .quality:
             transcriptionDelayMs = 720
         case .custom:
@@ -164,10 +168,10 @@ final class SettingsStore: ObservableObject {
         launchAtLogin = defaults.object(forKey: Key.launchAtLogin) as? Bool ?? false
         hasCompletedOnboarding = defaults.object(forKey: Key.hasCompletedOnboarding) as? Bool ?? false
         soundFeedback = defaults.object(forKey: Key.soundFeedback) as? Bool ?? true
-        llmCorrection = defaults.object(forKey: Key.llmCorrection) as? Bool ?? false
+        llmCorrection = defaults.object(forKey: Key.llmCorrection) as? Bool ?? true
         llmCorrectionStyle = (defaults.string(forKey: Key.llmCorrectionStyle)).flatMap(CorrectionStyle.init) ?? .natural
         llmCorrectionMode = (defaults.string(forKey: Key.llmCorrectionMode)).flatMap(CorrectionMode.init) ?? .speed
-        voxtralMode = (defaults.string(forKey: Key.voxtralMode)).flatMap(VoxtralMode.init) ?? (transcriptionDelayMs <= 240 ? .speed : (transcriptionDelayMs == 720 ? .quality : .custom))
+        voxtralMode = (defaults.string(forKey: Key.voxtralMode)).flatMap(VoxtralMode.init) ?? (transcriptionDelayMs <= 240 ? .speed : (transcriptionDelayMs == 480 ? .medium : (transcriptionDelayMs == 720 ? .quality : .custom)))
     }
 
     // MARK: - Display

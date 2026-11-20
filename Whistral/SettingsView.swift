@@ -274,6 +274,10 @@ private struct EnginePane: View {
                     Text("Speed (Fast): 240 ms lookahead for rapid real-time response.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                } else if settings.voxtralMode == .medium {
+                    Text("Medium: 480 ms lookahead balanced for low latency and high accuracy.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 } else if settings.voxtralMode == .quality {
                     Text("Quality (Accurate): 720 ms lookahead gives Voxtral deeper acoustic context for fewer transcription errors.")
                         .font(.footnote)
@@ -304,6 +308,8 @@ private struct EnginePane: View {
                         settings.transcriptionDelayMs = newDelay
                         if newDelay == 240 {
                             settings.voxtralMode = .speed
+                        } else if newDelay == 480 {
+                            settings.voxtralMode = .medium
                         } else if newDelay == 720 {
                             settings.voxtralMode = .quality
                         } else {

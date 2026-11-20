@@ -75,6 +75,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(SidecarEngineClient.appSupportURL)
     }
 
+    @objc func downloadUpdate(_ sender: NSMenuItem) {
+        UpdateChecker.shared.openDownload()
+    }
+
     @objc func quit(_ sender: NSMenuItem) {
         AppModel.shared.engineClient.terminate()
         NSApp.terminate(sender)
@@ -86,6 +90,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the status item opens).
     func populateMenu(_ menu: NSMenu) {
         menu.autoenablesItems = false
+
+        if let update = UpdateChecker.shared.availableUpdate {
+            let updateItem = NSMenuItem(
+                title: "Update Available (v\(update.version)) — Download…",
+                action: #selector(downloadUpdate(_:)),
+                keyEquivalent: ""
+            )
+            updateItem.target = self
+            updateItem.image = NSImage(systemSymbolName: "arrow.down.circle.fill",
+                                      accessibilityDescription: "Update available")
+            menu.addItem(updateItem)
+            menu.addItem(.separator())
+        }
 
         let model = AppModel.shared
 

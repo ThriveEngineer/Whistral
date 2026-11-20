@@ -64,6 +64,9 @@ final class AppModel: ObservableObject {
             showOnboarding = true
         }
 
+        // Check for updates in the background on launch
+        UpdateChecker.shared.checkForUpdates()
+
         // Detect accessibility while running so the hotkey activates as soon
         // as the user grants it.
         PermissionMonitor.shared.startPolling()

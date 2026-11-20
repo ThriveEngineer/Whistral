@@ -15,6 +15,7 @@ import SwiftUI
 struct SettingsView: View {
 
     @StateObject private var settings = SettingsStore.shared
+    @ObservedObject private var updateChecker = UpdateChecker.shared
     @State private var selectedPane: Pane = .general
 
     enum Pane: String, CaseIterable, Identifiable {
@@ -36,21 +37,42 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        TabView(selection: $selectedPane) {
-            GeneralPane()
-                .tabItem { Label(Pane.general.rawValue, systemImage: Pane.general.symbol) }
-                .tag(Pane.general)
-            DictationPane()
-                .tabItem { Label(Pane.dictation.rawValue, systemImage: Pane.dictation.symbol) }
-                .tag(Pane.dictation)
-            EnginePane()
-                .tabItem { Label(Pane.engine.rawValue, systemImage: Pane.engine.symbol) }
-                .tag(Pane.engine)
-            AboutPane()
-                .tabItem { Label(Pane.about.rawValue, systemImage: Pane.about.symbol) }
-                .tag(Pane.about)
+        VStack(spacing: 0) {
+            if let update = updateChecker.availableUpdate {
+                HStack(spacing: 10) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.orange)
+                    Text("Whistral v\(update.version) is available!")
+                        .font(.callout.weight(.medium))
+                    Spacer()
+                    Button("Download Update") {
+                        updateChecker.openDownload()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.accentColor.opacity(0.12))
+                Divider()
+            }
+
+            TabView(selection: $selectedPane) {
+                GeneralPane()
+                    .tabItem { Label(Pane.general.rawValue, systemImage: Pane.general.symbol) }
+                    .tag(Pane.general)
+                DictationPane()
+                    .tabItem { Label(Pane.dictation.rawValue, systemImage: Pane.dictation.symbol) }
+                    .tag(Pane.dictation)
+                EnginePane()
+                    .tabItem { Label(Pane.engine.rawValue, systemImage: Pane.engine.symbol) }
+                    .tag(Pane.engine)
+                AboutPane()
+                    .tabItem { Label(Pane.about.rawValue, systemImage: Pane.about.symbol) }
+                    .tag(Pane.about)
+            }
         }
-        .frame(width: 560, height: 400)
+        .frame(width: 560, height: updateChecker.availableUpdate != nil ? 440 : 400)
         .onChange(of: selectedPane) { _, pane in
             SettingsWindowController.shared.setWindowTitle("Whistral Settings — \(pane.rawValue)")
         }
@@ -363,6 +385,8 @@ private struct EnginePane: View {
 // MARK: - About
 
 private struct AboutPane: View {
+    @ObservedObject private var updateChecker = UpdateChecker.shared
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
@@ -376,6 +400,42 @@ private struct AboutPane: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
+            }
+
+            if let update = updateChecker.availableUpdate {
+                HStack(spacing: 12) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.accentColor)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Whistral \(update.version) is available")
+                            .font(.headline)
+                        Text("A new version is ready to download.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Download Update") {
+                        updateChecker.openDownload()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding(12)
+                .background(Color.accentColor.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                HStack(spacing: 12) {
+                    Button(updateChecker.isChecking ? "Checking for Updates…" : "Check for Updates") {
+                        updateChecker.checkForUpdates()
+                    }
+                    .disabled(updateChecker.isChecking)
+
+                    if let lastCheck = updateChecker.lastCheckDate {
+                        Text("Last checked: \(lastCheck.formatted(date: .omitted, time: .shortened))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             Divider()

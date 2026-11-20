@@ -63,6 +63,7 @@ final class HUDController: NSObject, ObservableObject {
         isFadingOut = true
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.15
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().alphaValue = 0
         }, completionHandler: {
             // A show() during our fade bumped the generation; don't bury it.
@@ -134,7 +135,8 @@ final class HUDController: NSObject, ObservableObject {
                 panel.alphaValue = 0
                 panel.orderFrontRegardless()
                 NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.15
+                    context.duration = 0.16
+                    context.timingFunction = CAMediaTimingFunction(name: .easeOut)
                     panel.animator().alphaValue = 1
                 }
             }

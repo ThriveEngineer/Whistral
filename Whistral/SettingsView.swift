@@ -157,7 +157,7 @@ private struct DictationPane: View {
             } header: {
                 Text("Smart Correction")
             } footer: {
-                Text("Uses Apple's on-device language model to remove filler words (uh, um...), resolve self-corrections (e.g. '10am, sorry I meant 11am' becomes '11am'), and clean up false starts. Choose Speed for fast turn-around, or Quality for thorough context analysis. Runs entirely on-device.")
+                Text("Uses Apple's on-device language model to remove filler words (uh, um, äh, este...), resolve self-corrections across all supported languages (e.g. '10am, sorry 11am' -> '11am', or German '10 Uhr, nein 11 Uhr' -> '11 Uhr'), and clean up false starts without translating. Runs entirely on-device.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

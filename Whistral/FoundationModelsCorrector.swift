@@ -5,6 +5,9 @@
 //  Post-processes raw Voxtral STT transcripts using the on-device Apple
 //  Foundation Model (macOS 26+). Runs entirely on-device -- no network.
 //
+//  Fully multilingual: supports German, Spanish, Arabic, English, French,
+//  Italian, Portuguese, Dutch, Chinese, Japanese, Russian, etc.
+//
 //  Supports two modes:
 //    * Speed: low-latency, compact prompt for fast filler & self-correction removal
 //    * Quality: deep contextual analysis with cross-sentence resolution
@@ -68,91 +71,108 @@ enum CorrectionStyle: String, CaseIterable, Identifiable {
         switch self {
         case .clean:
             return """
-            You are a fast dictation cleaner.
-            1. Replace self-corrections (e.g. "at 10, sorry 11" -> "at 11") keeping only the corrected text.
-            2. Remove spoken fillers: uh, uhh, um, umm, er, ah, like, you know.
-            3. Remove repeated words ("the the" -> "the").
-            Output ONLY the cleaned text. Never add commentary or quotes.
+            You are a fast multilingual dictation cleaner.
+            Process transcripts in their ORIGINAL language (German, Spanish, Arabic, English, French, Italian, etc.).
+            CRITICAL: NEVER translate. Always keep and output the EXACT same language as the input.
+
+            1. SELF-CORRECTIONS: When the speaker amends or corrects a previous word/phrase within or across sentences (e.g. "at 10? Sorry, 11" -> "at 11?", "um 10? Nein warte, um 11" -> "um 11?", "a las 10? Perdón, a las 11" -> "a las 11?", "في العاشرة؟ عفوا، في الحادية عشرة" -> "في الحادية عشرة"), keep ONLY the corrected statement and silently drop the mistake and correction cue.
+            2. FILLERS: Silently remove spoken filler words in any language (uh, um, like / äh, ähm, halt / eh, em, este / euh / يعني).
+            3. REPETITIONS: Remove duplicate adjacent words.
+            Output ONLY the cleaned text in the input language. Never add commentary or quotes.
             """
         case .natural:
             return """
-            You are a fast dictation cleaner and proofreader.
-            1. Replace self-corrections (e.g. "tomorrow at 10? Oh sorry, I meant 11" -> "tomorrow at 11?") keeping only the correction.
-            2. Remove fillers: uh, uhh, um, umm, er, ah, like, you know.
-            3. Remove duplicate words.
-            4. Fix basic punctuation and grammar.
-            Output ONLY the cleaned text. Never add commentary or quotes.
+            You are a fast multilingual dictation cleaner and proofreader.
+            Process transcripts in their ORIGINAL language (German, Spanish, Arabic, English, French, Italian, etc.).
+            CRITICAL: NEVER translate. Always keep and output the EXACT same language as the input.
+
+            1. SELF-CORRECTIONS: When the speaker amends or corrects a previous word/phrase within or across sentences (e.g. "at 10? Sorry, 11" -> "at 11?", "um 10? Nein warte, um 11" -> "um 11?", "a las 10? Perdón, a las 11" -> "a las 11?", "في العاشرة؟ عفوا، في الحادية عشرة" -> "في الحادية عشرة"), keep ONLY the corrected statement and silently drop the mistake and correction cue.
+            2. FILLERS: Silently remove spoken filler words in any language (uh, um, like / äh, ähm, halt / eh, em, este / euh / يعني).
+            3. REPETITIONS: Remove duplicate adjacent words.
+            4. PUNCTUATION & GRAMMAR: Fix basic punctuation and capitalization according to the rules of the input language.
+            Output ONLY the cleaned text in the input language. Never add commentary or quotes.
             """
         case .polished:
             return """
-            You are a fast dictation editor.
-            1. Replace self-corrections keeping only the correction.
-            2. Remove fillers (uh, um, er, like, you know) and repeated words.
-            3. Rephrase smoothly into clear, professional prose while preserving all facts.
-            Output ONLY the polished text. Never add commentary or quotes.
+            You are a fast multilingual dictation editor.
+            Process transcripts in their ORIGINAL language (German, Spanish, Arabic, English, French, Italian, etc.).
+            CRITICAL: NEVER translate. Always keep and output the EXACT same language as the input.
+
+            1. SELF-CORRECTIONS: Replace self-corrections keeping only the final corrected statement.
+            2. FILLERS: Remove filler words and repetitions in any language.
+            3. REPHRASE: Rephrase smoothly into clear, natural prose while strictly preserving the input language, tone, and facts.
+            Output ONLY the polished text in the input language. Never add commentary or quotes.
             """
         }
     }
 
     private func qualityInstructions() -> String {
         let core = """
-        You are a dictation post-processor. \
-        Your sole job is to clean up a raw voice-to-text transcript.
+        You are a multilingual dictation post-processor. \
+        You process speech-to-text transcripts in ANY language (including German, Spanish, Arabic, English, French, Italian, Portuguese, Dutch, Chinese, Japanese, Russian, etc.).
 
-        === RULE 1: SELF-CORRECTIONS (highest priority) ===
-        Speakers often correct themselves mid-speech. \
-        When they do, keep ONLY the corrected value -- \
-        silently replace the wrong part with the correction and \
+        === CRITICAL LANGUAGE RULE ===
+        Always output in the EXACT SAME LANGUAGE as the input transcript. \
+        NEVER translate the transcript into another language. \
+        If the input is in German, output in German. If in Spanish, output in Spanish. If in Arabic, output in Arabic.
+
+        === RULE 1: SELF-CORRECTIONS (ALL LANGUAGES, HIGHEST PRIORITY) ===
+        Speakers frequently correct themselves mid-speech. \
+        When they do, keep ONLY the corrected version -- \
+        silently replace the mistake with the correction and \
         remove all correction language from the final text.
 
-        Correction signals include (but are not limited to):
-          "oh sorry", "sorry", "I mean", "I meant", "actually",
-          "no wait", "no", "correction", "strike that", "scratch that",
-          "I should say", "rather", "or rather", "make that", "I mean to say"
+        This applies WITHIN a sentence and ACROSS sentence boundaries \
+        (e.g., when the correction follows a period or question mark).
 
-        IMPORTANT: corrections often come as a SEPARATE sentence that follows
-        the original sentence, e.g. after a period or question mark.
-        You must look across sentence boundaries for corrections.
+        Recognize correction indicators in any language:
+        - English: "sorry", "oh sorry", "I mean", "I meant", "actually", "no wait", "make that", "rather"
+        - German: "Entschuldigung", "sorry", "ich meine", "ich meinte", "nein warte", "warte", "eigentlich", "besser gesagt", "oder", "bzw."
+        - Spanish: "perdón", "disculpe", "quise decir", "digo", "o sea", "en realidad", "no espera", "mejor"
+        - French: "pardon", "désolé", "je veux dire", "je voulais dire", "en fait", "attends"
+        - Italian: "scusa", "intendevo", "volevo dire", "cioè", "anzi", "aspetta"
+        - Portuguese: "desculpa", "quis dizer", "ou melhor", "na verdade", "espera"
+        - Arabic: "عفواً", "أقصد", "أعني", "بل", "لا انتظر", "قصدي"
+        - And equivalent correction patterns in any other language.
 
-        Examples (study these carefully):
+        Multilingual Examples:
           In:  "Can we do a meeting tomorrow at 10? Oh, sorry, I meant 11 a.m."
           Out: "Can we do a meeting tomorrow at 11 a.m.?"
 
-          In:  "Let's meet at 10am, oh sorry I meant 11am"
-          Out: "Let's meet at 11 a.m."
+          In:  "Können wir uns morgen um 10 treffen? Oh sorry, ich meinte 11 Uhr."
+          Out: "Können wir uns morgen um 11 Uhr treffen?"
 
-          In:  "Send it to John. Actually, I mean Sarah."
-          Out: "Send it to Sarah."
+          In:  "Hallo können wir uns morgen treffen? Nein warte, übermorgen."
+          Out: "Hallo, können wir uns übermorgen treffen?"
 
-          In:  "The budget is 5000. No wait, 6000 dollars."
-          Out: "The budget is 6,000 dollars."
+          In:  "Hola podemos vernos mañana a las 3? Perdón, quise decir a las 4."
+          Out: "Hola, ¿podemos vernos mañana a las 4?"
 
-          In:  "Call me at 3pm. Sorry, make that 4pm."
-          Out: "Call me at 4 p.m."
+          In:  "On se voit demain à 14h? Pardon, je voulais dire 15h."
+          Out: "On se voit demain à 15h."
 
-          In:  "I need 10 copies. Oh actually, 12 copies."
-          Out: "I need 12 copies."
+          In:  "هل يمكننا عقد اجتماع غدا في العاشرة؟ عفوا، قصدت الحادية عشرة."
+          Out: "هل يمكننا عقد اجتماع غدا في الحادية عشرة؟"
 
-        === RULE 2: FILLER WORDS ===
-        Silently remove spoken filler words:
-          uh, uhh, uhm, um, umm, hmm, hm, ah, ahh, er,
-          "you know", "sort of", "kind of",
-          "like" (when used as filler, not as a verb/preposition),
-          "right" (when used as filler at start/end of clause),
-          "so" (only when used as a sentence-opening filler),
-          "basically", "literally" (when filler)
+        === RULE 2: FILLER WORDS (ALL LANGUAGES) ===
+        Silently remove spoken fillers in any language:
+        - English: uh, uhh, um, umm, er, ah, like (when filler), you know, so (at start of sentence), basically, literally
+        - German: äh, ähm, hm, halt, quasi, sozusagen, na ja, also (at start of sentence)
+        - Spanish: eh, em, este, o sea, bueno (at start of sentence)
+        - French: euh, ben, genre, hein, voilà
+        - Italian: ehm, cioè, tipo
+        - Portuguese: é, tipo, né
+        - Arabic: يعني, آه, إم
+        - And natural vocal hesitations in any other language.
 
-        === RULE 3: FALSE STARTS & WORD REPETITIONS ===
-        Remove abandoned fragments where the speaker restarted:
-          "Can we -- Can we schedule" -> "Can we schedule"
-        Remove immediate word repetitions:
-          "the the" -> "the", "is is" -> "is"
+        === RULE 3: FALSE STARTS & REPETITIONS ===
+        Remove aborted sentence restarts and duplicate adjacent words in any language.
 
         === ABSOLUTE CONSTRAINTS ===
-        - NEVER invent facts, names, times, numbers, or any content not spoken.
-        - NEVER change the meaning of the corrected version.
-        - NEVER add words that were not spoken (beyond punctuation).
-        - If the transcript needs no changes, return it exactly as-is.
+        - NEVER translate into English or any other language. Always keep the input language.
+        - NEVER invent facts, names, dates, times, numbers, or details not spoken.
+        - NEVER change the meaning of the corrected statement.
+        - If the transcript needs no changes, return it unchanged.
         - Return ONLY the cleaned transcript -- no preamble, no quotes, no explanation.
         """
 
@@ -162,9 +182,7 @@ enum CorrectionStyle: String, CaseIterable, Identifiable {
 
 
         === STYLE: CLEAN ===
-        Apply only the rules above. \
-        Do NOT fix grammar, spelling, or sentence structure beyond what the rules require. \
-        Keep the speaker's exact word choices.
+        Apply only Rules 1-3. Do NOT alter grammar, spelling, or sentence structure beyond what the rules require. Keep the speaker's exact word choices in their language.
         """
 
         case .natural:
@@ -172,12 +190,11 @@ enum CorrectionStyle: String, CaseIterable, Identifiable {
 
 
         === STYLE: NATURAL ===
-        After applying the rules above, also:
-        - Fix obvious grammar mistakes
-        - Add missing punctuation (commas, periods, question marks)
-        - Capitalise the first word of the result
-        - Normalise time formats (e.g. "11 a.m." or "11am" -- be consistent)
-        Do NOT restructure sentences or change vocabulary beyond these fixes.
+        After applying Rules 1-3:
+        - Fix obvious grammar and spelling mistakes in the transcript's language.
+        - Add missing punctuation (commas, periods, question marks).
+        - Capitalise properly according to the rules of the language.
+        - Preserve vocabulary and tone. Do not translate.
         """
 
         case .polished:
@@ -185,10 +202,10 @@ enum CorrectionStyle: String, CaseIterable, Identifiable {
 
 
         === STYLE: POLISHED ===
-        After applying the rules above, rewrite into clean professional prose:
-        - Fix all grammar, punctuation, and sentence structure
-        - Improve flow and clarity
-        - Preserve every fact, name, number, and decision the speaker stated
+        After applying Rules 1-3:
+        - Rewrite smoothly into clean, professional prose in the transcript's language.
+        - Fix grammar, punctuation, and flow while strictly preserving every fact, name, and number.
+        - Do not translate.
         """
         }
     }

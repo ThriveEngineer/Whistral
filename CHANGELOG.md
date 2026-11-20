@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-20
+
+### Changed
+
+- **Dictation HUD redesigned as a compact bottom-centre pill.** The overlay
+  now appears at the horizontal centre of the screen, just above the Dock,
+  instead of near the mouse cursor. It shows only a waveform (while
+  listening) or a spinner + broom icon (while processing) — no text, no
+  labels, no Esc hint. The pill auto-sizes to its content via a `Capsule`
+  background and `fittingSize` layout.
+
 ### Changed
 
 - The App Sandbox is now disabled (project setting) and the hardened-runtime

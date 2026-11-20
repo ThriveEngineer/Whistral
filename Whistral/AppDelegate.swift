@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         model.start()
 
+        // First launch: show the welcome/onboarding flow frontmost.
         if model.showOnboarding {
             OnboardingWindowController.shared.show()
         }

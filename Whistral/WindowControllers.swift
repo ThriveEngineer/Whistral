@@ -31,7 +31,10 @@ final class OnboardingWindowController {
             self.window = window
         }
         window?.makeKeyAndOrderFront(nil)
+        // Activate the app so the onboarding window comes frontmost
+        // even though the app is an .accessory (menu-bar) app.
         NSApp.activate(ignoringOtherApps: true)
+        NSApp.unhide(nil)
     }
 
     func close() {
@@ -65,7 +68,10 @@ final class SettingsWindowController {
             self.window = window
         }
         window?.makeKeyAndOrderFront(nil)
+        // Activate the app so the onboarding window comes frontmost
+        // even though the app is an .accessory (menu-bar) app.
         NSApp.activate(ignoringOtherApps: true)
+        NSApp.unhide(nil)
     }
 
     func setWindowTitle(_ title: String) {

@@ -215,6 +215,12 @@ final class TranscriptionController: NSObject, ObservableObject {
             engine.start(delayMs: settings.transcriptionDelayMs, sessionToken: sessionToken)
             phase = .recording
             scheduleMaxDurationWatchdog()
+            if settings.llmCorrection, FoundationModelsCorrector.isAvailable {
+                FoundationModelsCorrector.prewarm(
+                    style: settings.llmCorrectionStyle,
+                    mode: settings.llmCorrectionMode
+                )
+            }
         } catch {
             hud.update(text: error.localizedDescription)
             phase = .idle
@@ -426,10 +432,12 @@ final class TranscriptionController: NSObject, ObservableObject {
                 // Safety: abort if a newer session started while we were
                 // scheduled (e.g. the user pressed the hotkey again fast).
                 guard self.sessionToken == token, !self.cancelled else { return }
-                self.hud.update(text: "✦ Cleaning up…")
+                let status = self.settings.llmCorrectionMode == .speed ? "✦ Quick clean…" : "✦ Cleaning up…"
+                self.hud.update(text: status)
                 let corrected = await FoundationModelsCorrector.correct(
                     text: trimmed,
-                    style: self.settings.llmCorrectionStyle
+                    style: self.settings.llmCorrectionStyle,
+                    mode: self.settings.llmCorrectionMode
                 )
                 // Re-check token after the await — a new session may have
                 // started during the async correction call.

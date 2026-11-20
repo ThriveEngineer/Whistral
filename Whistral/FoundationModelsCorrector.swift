@@ -5,25 +5,29 @@
 //  Post-processes raw Voxtral STT transcripts using the on-device Apple
 //  Foundation Model (macOS 26+). Runs entirely on-device -- no network.
 //
-//  Handles:
-//    * Self-corrections, including cross-sentence ones:
-//        "Can we meet at 10? Oh sorry, I meant 11 a.m."
-//        -> "Can we meet at 11 a.m.?"
-//
-//    * Filler word removal:
-//        "so uhh can we uhm schedule a call"
-//        -> "Can we schedule a call?"
-//
-//    * False starts & repetitions:
-//        "Let's -- Can we move the meeting" -> "Can we move the meeting"
-//        "the the report is is done"        -> "the report is done"
-//
-//  Falls back to the raw transcript on any error so the dictation path
-//  is never blocked.
+//  Supports two modes:
+//    * Speed: low-latency, compact prompt for fast filler & self-correction removal
+//    * Quality: deep contextual analysis with cross-sentence resolution
 //
 
 import Foundation
 import FoundationModels
+
+// MARK: - Correction mode (Speed vs Quality)
+
+enum CorrectionMode: String, CaseIterable, Identifiable {
+    case speed = "speed"
+    case quality = "quality"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .speed:   return "Speed (Fast) -- lower latency"
+        case .quality: return "Quality (Accurate) -- deeper context"
+        }
+    }
+}
 
 // MARK: - Correction style
 
@@ -50,10 +54,47 @@ enum CorrectionStyle: String, CaseIterable, Identifiable {
 
     // MARK: - Instructions (system prompt)
 
-    /// Passed to LanguageModelSession(instructions:) so the model treats it
-    /// as a true system prompt rather than part of the user turn.
-    fileprivate var instructions: String {
-        // Shared rules used by every style.
+    /// Builds instructions according to both the style and the quality/speed mode.
+    fileprivate func instructions(mode: CorrectionMode) -> String {
+        switch mode {
+        case .speed:
+            return speedInstructions()
+        case .quality:
+            return qualityInstructions()
+        }
+    }
+
+    private func speedInstructions() -> String {
+        switch self {
+        case .clean:
+            return """
+            You are a fast dictation cleaner.
+            1. Replace self-corrections (e.g. "at 10, sorry 11" -> "at 11") keeping only the corrected text.
+            2. Remove spoken fillers: uh, uhh, um, umm, er, ah, like, you know.
+            3. Remove repeated words ("the the" -> "the").
+            Output ONLY the cleaned text. Never add commentary or quotes.
+            """
+        case .natural:
+            return """
+            You are a fast dictation cleaner and proofreader.
+            1. Replace self-corrections (e.g. "tomorrow at 10? Oh sorry, I meant 11" -> "tomorrow at 11?") keeping only the correction.
+            2. Remove fillers: uh, uhh, um, umm, er, ah, like, you know.
+            3. Remove duplicate words.
+            4. Fix basic punctuation and grammar.
+            Output ONLY the cleaned text. Never add commentary or quotes.
+            """
+        case .polished:
+            return """
+            You are a fast dictation editor.
+            1. Replace self-corrections keeping only the correction.
+            2. Remove fillers (uh, um, er, like, you know) and repeated words.
+            3. Rephrase smoothly into clear, professional prose while preserving all facts.
+            Output ONLY the polished text. Never add commentary or quotes.
+            """
+        }
+    }
+
+    private func qualityInstructions() -> String {
         let core = """
         You are a dictation post-processor. \
         Your sole job is to clean up a raw voice-to-text transcript.
@@ -157,20 +198,22 @@ enum CorrectionStyle: String, CaseIterable, Identifiable {
 
 enum FoundationModelsCorrector {
 
-    // One session per style so each has its own instruction context baked in.
-    private static var sessions: [CorrectionStyle: LanguageModelSession] = [:]
+    private struct SessionKey: Hashable {
+        let style: CorrectionStyle
+        let mode: CorrectionMode
+    }
+
+    private static var sessions: [SessionKey: LanguageModelSession] = [:]
 
     /// Cleans `text` with the on-device Foundation Model.
     /// Returns the original `text` unchanged on any error.
     @MainActor
-    static func correct(text: String, style: CorrectionStyle) async -> String {
+    static func correct(text: String, style: CorrectionStyle, mode: CorrectionMode = .naturalMode) async -> String {
         let input = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !input.isEmpty else { return text }
 
         do {
-            let s = try getSession(for: style)
-            // The user turn is just the raw transcript -- the system/instruction
-            // context is set on the session itself via instructions:
+            let s = try getSession(for: style, mode: mode)
             let response = try await s.respond(to: Prompt(input))
             var result = response.content
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -178,7 +221,6 @@ enum FoundationModelsCorrector {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
 
             guard !result.isEmpty else { return input }
-            // Safety: reject output that is implausibly longer than the input.
             guard result.count <= input.count * 4 else {
 #if DEBUG
                 print("[Corrector] output too long, using original")
@@ -191,9 +233,17 @@ enum FoundationModelsCorrector {
 #if DEBUG
             print("[Corrector] error:", error.localizedDescription)
 #endif
-            sessions[style] = nil  // reset so next call tries a fresh session
+            sessions[SessionKey(style: style, mode: mode)] = nil
             return input
         }
+    }
+
+    /// Prewarms the session in advance (e.g. when dictation starts)
+    /// to eliminate cold-start latency when dictation ends.
+    @MainActor
+    static func prewarm(style: CorrectionStyle, mode: CorrectionMode) {
+        guard isAvailable else { return }
+        _ = try? getSession(for: style, mode: mode)
     }
 
     /// Whether the on-device Apple Intelligence model is available.
@@ -204,17 +254,22 @@ enum FoundationModelsCorrector {
     // MARK: - Private
 
     @MainActor
-    private static func getSession(for style: CorrectionStyle) throws -> LanguageModelSession {
-        if let existing = sessions[style] { return existing }
+    private static func getSession(for style: CorrectionStyle, mode: CorrectionMode) throws -> LanguageModelSession {
+        let key = SessionKey(style: style, mode: mode)
+        if let existing = sessions[key] { return existing }
         guard SystemLanguageModel.default.isAvailable else {
             throw CorrectorError.modelUnavailable
         }
-        // LanguageModelSession(instructions:) sets a true system prompt,
-        // giving the model the right role framing separate from the user turn.
-        let s = LanguageModelSession(instructions: style.instructions)
-        sessions[style] = s
+        let s = LanguageModelSession(instructions: style.instructions(mode: mode))
+        sessions[key] = s
         return s
     }
+}
+
+// MARK: - Default mode extension
+
+private extension CorrectionMode {
+    static var naturalMode: CorrectionMode { .quality }
 }
 
 // MARK: - Error

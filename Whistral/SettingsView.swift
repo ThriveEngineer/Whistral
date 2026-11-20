@@ -138,6 +138,11 @@ private struct DictationPane: View {
                 Toggle("Smart Correction", isOn: $settings.llmCorrection)
                 if settings.llmCorrection {
                     if FoundationModelsCorrector.isAvailable {
+                        Picker("Mode", selection: $settings.llmCorrectionMode) {
+                            ForEach(CorrectionMode.allCases) { mode in
+                                Text(mode.label).tag(mode)
+                            }
+                        }
                         Picker("Style", selection: $settings.llmCorrectionStyle) {
                             ForEach(CorrectionStyle.allCases) { style in
                                 Text(style.label).tag(style)
@@ -152,7 +157,7 @@ private struct DictationPane: View {
             } header: {
                 Text("Smart Correction")
             } footer: {
-                Text("Uses Apple's on-device language model to remove filler words (uh, um...), resolve self-corrections (e.g. '10am, sorry I meant 11am' becomes '11am'), and clean up false starts. Runs entirely on-device -- nothing is sent to the cloud. Adds a brief delay after each dictation.")
+                Text("Uses Apple's on-device language model to remove filler words (uh, um...), resolve self-corrections (e.g. '10am, sorry I meant 11am' becomes '11am'), and clean up false starts. Choose Speed for fast turn-around, or Quality for thorough context analysis. Runs entirely on-device.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -256,6 +261,30 @@ private struct EnginePane: View {
 
     var body: some View {
         Form {
+            Section("Speech Recognition Mode") {
+                Picker("Preset", selection: Binding(
+                    get: { settings.voxtralMode },
+                    set: { newMode in settings.applyVoxtralMode(newMode) }
+                )) {
+                    ForEach(VoxtralMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                if settings.voxtralMode == .speed {
+                    Text("Speed (Fast): 240 ms lookahead for rapid real-time response.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else if settings.voxtralMode == .quality {
+                    Text("Quality (Accurate): 720 ms lookahead gives Voxtral deeper acoustic context for fewer transcription errors.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Custom configuration for lookahead delay and model precision.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Model") {
                 Picker("Speech model", selection: $settings.modelID) {
                     ForEach(AppModel.availableModels, id: \.id) { model in
@@ -269,7 +298,19 @@ private struct EnginePane: View {
             }
 
             Section("Transcription delay") {
-                Picker("Delay", selection: $settings.transcriptionDelayMs) {
+                Picker("Delay", selection: Binding(
+                    get: { settings.transcriptionDelayMs },
+                    set: { newDelay in
+                        settings.transcriptionDelayMs = newDelay
+                        if newDelay == 240 {
+                            settings.voxtralMode = .speed
+                        } else if newDelay == 720 {
+                            settings.voxtralMode = .quality
+                        } else {
+                            settings.voxtralMode = .custom
+                        }
+                    }
+                )) {
                     ForEach(settings.transcriptionDelayOptions, id: \.self) { ms in
                         Text("\(ms) ms").tag(ms)
                     }

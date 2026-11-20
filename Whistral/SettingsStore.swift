@@ -43,6 +43,22 @@ enum InsertionMethod: String, CaseIterable, Identifiable {
     }
 }
 
+enum VoxtralMode: String, CaseIterable, Identifiable {
+    case speed = "speed"
+    case quality = "quality"
+    case custom = "custom"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .speed:   return "Speed (Fast) -- 240 ms delay"
+        case .quality: return "Quality (Accurate) -- 720 ms delay"
+        case .custom:  return "Custom"
+        }
+    }
+}
+
 /// All persisted user settings. Backed by UserDefaults.
 final class SettingsStore: ObservableObject {
 
@@ -69,6 +85,8 @@ final class SettingsStore: ObservableObject {
         static let soundFeedback = "soundFeedback"
         static let llmCorrection = "llmCorrection"
         static let llmCorrectionStyle = "llmCorrectionStyle"
+        static let llmCorrectionMode = "llmCorrectionMode"
+        static let voxtralMode = "voxtralMode"
     }
 
     // MARK: - Values
@@ -111,6 +129,26 @@ final class SettingsStore: ObservableObject {
     @Published var llmCorrectionStyle: CorrectionStyle = .natural {
         didSet { defaults.set(llmCorrectionStyle.rawValue, forKey: Key.llmCorrectionStyle); objectWillChange.send() }
     }
+    /// Speed (low latency) vs Quality (deeper context) for Apple Foundation Model.
+    @Published var llmCorrectionMode: CorrectionMode = .speed {
+        didSet { defaults.set(llmCorrectionMode.rawValue, forKey: Key.llmCorrectionMode); objectWillChange.send() }
+    }
+    /// Speed vs Quality preset for Voxtral speech-to-text.
+    @Published var voxtralMode: VoxtralMode = .quality {
+        didSet { defaults.set(voxtralMode.rawValue, forKey: Key.voxtralMode); objectWillChange.send() }
+    }
+
+    func applyVoxtralMode(_ mode: VoxtralMode) {
+        voxtralMode = mode
+        switch mode {
+        case .speed:
+            transcriptionDelayMs = 240
+        case .quality:
+            transcriptionDelayMs = 720
+        case .custom:
+            break
+        }
+    }
 
     // MARK: - Restore
 
@@ -128,6 +166,8 @@ final class SettingsStore: ObservableObject {
         soundFeedback = defaults.object(forKey: Key.soundFeedback) as? Bool ?? true
         llmCorrection = defaults.object(forKey: Key.llmCorrection) as? Bool ?? false
         llmCorrectionStyle = (defaults.string(forKey: Key.llmCorrectionStyle)).flatMap(CorrectionStyle.init) ?? .natural
+        llmCorrectionMode = (defaults.string(forKey: Key.llmCorrectionMode)).flatMap(CorrectionMode.init) ?? .speed
+        voxtralMode = (defaults.string(forKey: Key.voxtralMode)).flatMap(VoxtralMode.init) ?? (transcriptionDelayMs <= 240 ? .speed : (transcriptionDelayMs == 720 ? .quality : .custom))
     }
 
     // MARK: - Display

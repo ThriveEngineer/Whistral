@@ -108,7 +108,7 @@ final class HUDController: NSObject, ObservableObject {
         self.panel = panel
 
         let hosting = panel.contentView as? NSHostingView<HUDView>
-        let contentSize = hosting?.fittingSize ?? NSSize(width: 380, height: 80)
+        let contentSize = hosting?.fittingSize ?? NSSize(width: 100, height: 40)
 
         // Anchor to the pointer once per appearance; subsequent updates only
         // resize (and only when the size actually changed) so the HUD doesn't
@@ -142,13 +142,25 @@ final class HUDController: NSObject, ObservableObject {
         }
     }
 
-    /// Place the HUD at the horizontal centre of the main screen, just above
-    /// the Dock (or bottom edge when no Dock is visible).
+    /// Place the HUD at the horizontal centre of the screen containing the
+    /// cursor, comfortably above the Dock / bottom edge.
     private func anchorPoint(preferredSize: NSSize) -> NSPoint {
-        let screen = NSScreen.main ?? NSScreen.screens[0]
+        // Use the screen the cursor is on; fall back to the menu-bar screen.
+        let mouse  = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { $0.frame.contains(mouse) }
+                     ?? NSScreen.main
+                     ?? NSScreen.screens[0]
         let visible = screen.visibleFrame
-        let x = visible.midX - preferredSize.width / 2
-        let y = visible.minY + 24   // 24 pt above Dock / bottom edge
+
+        // Centre horizontally; place bottom edge 32 pt above the visible-frame
+        // minimum (above the Dock).  Clamp so the whole pill stays on-screen.
+        let margin: CGFloat = 32
+        var x = visible.midX - preferredSize.width  / 2
+        var y = visible.minY + margin
+
+        // Hard-clamp: never let any edge escape the visible frame.
+        x = min(max(x, visible.minX + 8), visible.maxX - preferredSize.width  - 8)
+        y = min(max(y, visible.minY + 8), visible.maxY - preferredSize.height - 8)
         return NSPoint(x: x, y: y)
     }
 

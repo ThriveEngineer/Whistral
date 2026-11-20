@@ -54,6 +54,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mouse-accessible surface) was never created. The installer now receives
   the AppDelegate directly instead of digging it out of `NSApp.delegate`.
 
+## [0.2.0] — 2026-11-20
+
+### Added
+
+- **Smart on-device correction via Apple Foundation Models.** Whistral now
+  post-processes raw Voxtral speech transcripts using Apple's on-device
+  `FoundationModels` framework (Apple Intelligence).
+- **Spoken self-correction and filler removal.** Automatically detects and
+  resolves speaker self-corrections across sentence boundaries (e.g.
+  *"Can we do a meeting tomorrow at 10? Oh, sorry, I meant 11 a.m."* →
+  *"Can we do a meeting tomorrow at 11 a.m.?"*), removes spoken filler words
+  (*uh*, *um*, *like*, *you know*), and eliminates false starts and repetitions.
+- **Speed vs. Quality modes.** Both Smart Correction and Voxtral STT offer
+  dedicated presets for low latency or higher accuracy:
+  - Smart Correction: `Speed (Fast)` and `Quality (Accurate)`.
+  - Voxtral STT: `Speed (Fast)` (240 ms), `Medium` (480 ms, default),
+    `Quality (Accurate)` (720 ms), and `Custom`.
+- **Background session prewarming.** The Apple Foundation Model session is
+  pre-allocated and warmed in the background when dictation begins, minimizing
+  turn-around latency when the user stops speaking.
+- **Updated welcoming onboarding.** The first-launch experience now introduces
+  both Voxtral STT and on-device Smart Correction.
+
 ## [0.1.1] — 2026-11-20
 
 ### Fixed

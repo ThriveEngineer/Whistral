@@ -17,8 +17,13 @@ No audio, text, or telemetry ever leaves your Mac.
 
 - **Push-to-talk or toggle dictation** — a global shortcut (default ⌥Space)
   works system-wide, in any app.
-- **Completely local** — audio is transcribed on-device with MLX; nothing is
-  uploaded anywhere.
+- **Smart on-device correction** — uses Apple's Foundation Model to clean up
+  fillers (*uh*, *um*, *like*), resolve spoken self-corrections (e.g. *"meet at 10,
+  sorry I meant 11am"* → *"meet at 11am"*), and fix grammar automatically.
+- **Speed vs. Quality presets** — choose between Speed (Fast) and Quality
+  (Accurate) for both speech recognition lookahead and LLM post-processing.
+- **Completely local** — speech recognition (Voxtral on MLX) and smart correction
+  (Apple Foundation Model) run 100% on your Mac; nothing is uploaded anywhere.
 - **Live partial results** — a floating HUD near your cursor shows a waveform
   and streaming text while you speak.
 - **13 languages** — Voxtral's multilingual ASR automatically handles the
@@ -70,6 +75,11 @@ model loads in about 1 s once cached — a first-ever launch downloads the
 - The sidecar wraps [voxmlx](https://github.com/awni/voxmlx), an MLX
   implementation of the streaming Voxtral pipeline, and emits NDJSON events
   (`partial`, `segment`, `final`) back to Swift.
+- If **Smart Correction** is enabled, the final Voxtral transcript is piped to
+  Apple's on-device Foundation Model (`FoundationModels` framework). The model
+  removes spoken disfluencies, filler words, and resolves self-corrections
+  (e.g., *"10am, sorry I meant 11am"* → *"11am"*). The model session is prewarmed
+  in the background while you speak for minimal turn-around latency.
 - The HUD is a non-activating `NSPanel`, so your keystrokes and focus are
   never stolen. Text insertion is a synthetic ⌘V that saves and restores
   your clipboard.
@@ -93,7 +103,11 @@ model loads in about 1 s once cached — a first-ever launch downloads the
 | Push-to-talk / toggle | Hold the key to talk, or press to start/stop |
 | Insert at cursor | Auto-insert the transcription into the focused app (on by default) |
 | Insertion method | Paste (fast, restores your clipboard) or synthetic keystrokes |
-| Transcription delay | Streaming latency trade-off (80 ms–2400 ms; lower = snappier) |
+| Smart Correction | Enable/disable on-device Apple Foundation Model post-processing |
+| Correction Mode | Speed (Fast, prewarmed session) or Quality (deeper cross-sentence context) |
+| Correction Style | Clean (fillers & corrections only), Natural (default: fixes grammar), Polished |
+| Recognition Preset | Speed (240 ms), Medium (480 ms default), Quality (720 ms), or Custom |
+| Transcription delay | Fine-tune streaming lookahead delay (80 ms–2400 ms) |
 | Sound feedback | Subtle system sounds when dictation starts and finishes |
 | Cancel with Esc | Hardwired: pressing Esc cancels the current dictation |
 | Model | Voxtral Mini 4B Realtime — 6-bit (default) or BF16 (original) |

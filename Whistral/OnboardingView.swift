@@ -101,7 +101,7 @@ struct OnboardingView: View {
 private extension OnboardingView.Step {
     var subtitle: String {
         switch self {
-        case .welcome: return "On-device dictation with Voxtral Mini 4B Realtime"
+        case .welcome: return "On-device dictation with Smart Correction"
         case .permissions: return "Two permissions, requested once"
         case .engine: return "Setting up the speech engine"
         case .model: return "One-time download of the speech model"
@@ -259,18 +259,21 @@ private struct WelcomeStep: View {
     @ObservedObject var model: OnboardingModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
+            BulletRow(systemImage: "waveform",
+                      title: "Voxtral speech-to-text",
+                      detail: "Realtime streaming dictation powered by Mistral's Voxtral Mini 4B on Apple Silicon MLX. Recognizes 13 languages.")
+            BulletRow(systemImage: "sparkles",
+                      title: "Smart on-device correction",
+                      detail: "Apple Foundation Models clean up fillers (uh, um...), fix spoken self-corrections ('meet at 10, sorry 11am' -> '11am'), and polish grammar.")
             BulletRow(systemImage: "lock.shield",
-                      title: "Everything stays on your Mac",
-                      detail: "Audio is transcribed on this device. No recordings are saved and nothing is sent to a server.")
+                      title: "100% private and offline",
+                      detail: "Both speech recognition and smart correction run entirely on your Mac. Nothing is ever sent to the cloud.")
             BulletRow(systemImage: "keyboard",
-                      title: "Choose a shortcut",
-                      detail: "Hold the shortcut while you speak; your words are typed at the cursor when you let go.")
-            BulletRow(systemName: nil, assetName: nil,
-                      title: "Understand speech in 13 languages",
-                      detail: "Voxtral Mini 4B Realtime recognizes Arabic, Chinese, English, French, German, Hindi, Italian, Dutch, Portuguese, Japanese, Korean, Russian, and Spanish.")
+                      title: "Global dictation shortcut",
+                      detail: "Hold \(AppModel.shared.settings.hotkeyDisplay) while you speak, and release to insert clean text directly into any focused app.")
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         .accessibilityElement(children: .contain)
     }
 }
@@ -380,19 +383,19 @@ private struct FinishStep: View {
     @ObservedObject var model: OnboardingModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            BulletRow(systemImage: "menubar.rectangle",
-                      title: "Lives in your menu bar",
-                      detail: "Whistral appears as a small microphone icon. Use the menu to start dictation, open Settings, or review recent transcripts.")
-            BulletRow(systemImage: "questionmark.circle",
-                      title: "Can't find the icon?",
-                      detail: "Whistral keeps running even if macOS hides the menu bar icon. Use \(AppModel.shared.settings.hotkeyDisplay) to dictate, or relaunch Whistral from Applications to show its menu again.")
+        VStack(alignment: .leading, spacing: 14) {
             BulletRow(systemImage: "keyboard",
                       title: "Try it now",
-                      detail: "Click into any text field, hold \(AppModel.shared.settings.hotkeyDisplay), speak, and release.")
-            BulletRow(systemImage: "gear",
-                      title: "Make it yours",
-                      detail: "Change the shortcut, transcription delay, or model anytime in Settings (⌘,).")
+                      detail: "Click into any text field, hold \(AppModel.shared.settings.hotkeyDisplay), speak naturally, and release.")
+            BulletRow(systemImage: "sparkles",
+                      title: "Smart Correction is active",
+                      detail: "Filler words and mid-sentence corrections are resolved automatically. You can toggle or tune Speed vs Quality in Settings.")
+            BulletRow(systemImage: "menubar.rectangle",
+                      title: "Lives in your menu bar",
+                      detail: "Access Settings, switch models or presets (Speed, Medium, Quality), or copy recent transcripts from the menu bar.")
+            BulletRow(systemImage: "questionmark.circle",
+                      title: "Can't find the icon?",
+                      detail: "Whistral keeps running even if macOS hides the icon. Use \(AppModel.shared.settings.hotkeyDisplay) to dictate, or relaunch Whistral to show it.")
             if !model.modelReady {
                 Text("The model is still downloading in the background. You can finish now and dictate once it's ready.")
                     .font(.callout)

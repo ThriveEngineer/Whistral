@@ -19,21 +19,17 @@ struct HUDView: View {
             switch controller.phase {
             case .listening:
                 WaveformBars(level: controller.micLevel)
-                    .transition(.opacity)
 
             case .transcribing:
                 // Loading spinner: centered in the pill
-                ProgressView()
-                    .controlSize(.small)
-                    .transition(.opacity)
-                    .accessibilityLabel("Processing transcription")
+                LoadingSpinner()
 
             case .cleaning:
                 // Clean-up indicator: broom — centered in the pill
                 Image(systemName: "broom.fill")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
-                    .transition(.opacity)
+                    .frame(width: 16, height: 16)
                     .accessibilityLabel("Cleaning up text")
 
             case .hidden:
@@ -47,6 +43,29 @@ struct HUDView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Dictation HUD")
+    }
+}
+
+// MARK: - Loading Spinner (Pure SwiftUI: guaranteed animation in nonactivating panel)
+
+struct LoadingSpinner: View {
+
+    @State private var isSpinning = false
+
+    var body: some View {
+        Circle()
+            .trim(from: 0.15, to: 0.85)
+            .stroke(
+                Color.accentColor,
+                style: StrokeStyle(lineWidth: 2.2, lineCap: .round)
+            )
+            .frame(width: 16, height: 16)
+            .rotationEffect(.degrees(isSpinning ? 360 : 0))
+            .animation(.linear(duration: 0.8).repeatForever(autoreverses: false), value: isSpinning)
+            .onAppear {
+                isSpinning = true
+            }
+            .accessibilityLabel("Processing transcription")
     }
 }
 

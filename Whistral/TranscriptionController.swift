@@ -432,6 +432,11 @@ final class TranscriptionController: NSObject, ObservableObject {
                 // Safety: abort if a newer session started while we were
                 // scheduled (e.g. the user pressed the hotkey again fast).
                 guard self.sessionToken == token, !self.cancelled else { return }
+
+                // Brief pause so the loading spinner is visible before switching to the broom
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                guard self.sessionToken == token, !self.cancelled else { return }
+
                 self.hud.showCleaning()
                 let status = self.settings.llmCorrectionMode == .speed ? "Quick clean…" : "Cleaning up…"
                 self.hud.update(text: status)

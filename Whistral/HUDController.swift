@@ -47,10 +47,6 @@ final class HUDController: NSObject, ObservableObject {
 
     func update(text: String) {
         partialText = text
-        if text.localizedCaseInsensitiveContains("clean") {
-            phase = .cleaning
-            presentPanel()
-        }
     }
 
     func showTranscribing() {

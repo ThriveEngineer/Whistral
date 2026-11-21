@@ -1,6 +1,6 @@
 cask "whistral" do
   version "0.3.1"
-  sha256 "9138f545c8694a6d70fa7e7c11d17d145688d0b9ec99f9f9dda5fe36018fd2d7"
+  sha256 "550d1fe98cecf70326c0cb9610949fa53fc41f292c5da713114f2f6dbc27fcb3"
 
   url "https://github.com/ThriveEngineer/Whistral/releases/download/v#{version}/Whistral-#{version}.zip"
   name "Whistral"

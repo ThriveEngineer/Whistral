@@ -33,9 +33,10 @@ mkdir -p "$OUTPUT_DIR"
 
 # --- 1. Find Developer ID Application identity ------------------------------
 echo "==> Looking for Developer ID Application certificate..."
-SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application:" | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/' || true)
+SIGNING_HASH=$(security find-identity -v -p codesigning | grep "Developer ID Application:" | head -n 1 | awk '{print $2}')
+SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application:" | head -n 1 || true)
 
-if [[ -z "$SIGNING_IDENTITY" ]]; then
+if [[ -z "$SIGNING_HASH" ]]; then
     echo "error: No 'Developer ID Application' certificate found in Keychain." >&2
     echo "" >&2
     echo "To get one:" >&2
@@ -45,7 +46,8 @@ if [[ -z "$SIGNING_IDENTITY" ]]; then
     exit 1
 fi
 
-echo "==> Using identity: $SIGNING_IDENTITY"
+echo "==> Using certificate hash: $SIGNING_HASH"
+echo "==> Identity: $SIGNING_IDENTITY"
 
 # --- 2. Read version --------------------------------------------------------
 version=""
@@ -70,7 +72,7 @@ xcodebuild build \
     -destination 'platform=macOS,arch=arm64' \
     -derivedDataPath "$DERIVED_DATA_PATH" \
     CODE_SIGN_STYLE="Manual" \
-    CODE_SIGN_IDENTITY="$SIGNING_IDENTITY"
+    CODE_SIGN_IDENTITY="$SIGNING_HASH"
 
 PRODUCTS_DIR="$DERIVED_DATA_PATH/Build/Products/Release"
 APP_PATH="$(find "$PRODUCTS_DIR" -maxdepth 1 -type d -name '*.app' | head -n 1)"
@@ -83,7 +85,7 @@ fi
 # --- 3. Re-sign bundle with Hardened Runtime & Timestamp --------------------
 echo "==> Signing app bundle with hardened runtime and timestamp..."
 codesign --force --deep --options runtime --timestamp \
-    --sign "$SIGNING_IDENTITY" \
+    --sign "$SIGNING_HASH" \
     --entitlements "Whistral/Whistral.entitlements" \
     "$APP_PATH"
 

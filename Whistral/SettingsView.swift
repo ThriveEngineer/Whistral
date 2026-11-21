@@ -223,12 +223,34 @@ private struct HotkeyRecorderRow: View {
         }
         let relevantMods = NSEvent.ModifierFlags([.command, .option, .control, .shift])
             .intersection(event.modifierFlags)
-        // Require at least one modifier or a function key so typing isn't swallowed.
-        let plainLetter = relevantMods.isEmpty && event.keyCode < 96 && ![UInt16(kVK_Space), UInt16(kVK_Tab), UInt16(kVK_Return)].contains(event.keyCode)
+
+        // Allow function keys and standalone modifier keys like Fn
+        let isFnKey = event.keyCode == UInt16(kVK_Function)
+        let isModifierKey = isFnKey || [UInt16(kVK_Shift), UInt16(kVK_RightShift),
+                                        UInt16(kVK_Option), UInt16(kVK_RightOption),
+                                        UInt16(kVK_Control), UInt16(kVK_RightControl),
+                                        UInt16(kVK_Command), UInt16(kVK_RightCommand),
+                                        UInt16(kVK_CapsLock)].contains(event.keyCode)
+
+        let plainLetter = relevantMods.isEmpty && !isModifierKey && event.keyCode < 96 && ![UInt16(kVK_Space), UInt16(kVK_Tab), UInt16(kVK_Return)].contains(event.keyCode)
         guard !plainLetter else { return }
+
+        // For flagsChanged, only capture on press (down), not on release (up)
+        if event.type == .flagsChanged && !isModifierPressed(event) {
+            return
+        }
+
         settings.hotkeyCode = UInt32(event.keyCode)
         settings.hotkeyModifiers = UInt64(relevantMods.rawValue)
         isRecording = false
+    }
+
+    private func isModifierPressed(_ event: NSEvent) -> Bool {
+        if event.keyCode == UInt16(kVK_Function) {
+            return event.modifierFlags.contains(.function)
+        }
+        let relevant: NSEvent.ModifierFlags = [.command, .option, .control, .shift, .capsLock]
+        return !event.modifierFlags.intersection(relevant).isEmpty
     }
 }
 

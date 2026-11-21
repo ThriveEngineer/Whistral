@@ -29,8 +29,8 @@ struct Hotkey: Equatable, Codable {
     }
 
     static let `default` = Hotkey(
-        keyCode: UInt32(kVK_Space),
-        modifiers: CGEventFlags.maskAlternate.rawValue
+        keyCode: UInt32(kVK_Function),
+        modifiers: 0
     )
 }
 
@@ -59,7 +59,9 @@ final class HotkeyController {
         self.hotkey = hotkey
         disable()
 
-        let mask: CGEventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
+        let mask: CGEventMask = (1 << CGEventType.keyDown.rawValue) |
+                                (1 << CGEventType.keyUp.rawValue) |
+                                (1 << CGEventType.flagsChanged.rawValue)
 
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
             guard let userInfo else {
@@ -137,6 +139,40 @@ final class HotkeyController {
         }
 
         switch type {
+        case .flagsChanged:
+            // Handle standalone modifier hotkeys like Fn (kVK_Function), Shift, etc.
+            let isDown: Bool
+            if keyCode == Int(kVK_Function) {
+                isDown = event.flags.contains(.maskSecondaryFn)
+            } else if keyCode == Int(kVK_Shift) || keyCode == Int(kVK_RightShift) {
+                isDown = event.flags.contains(.maskShift)
+            } else if keyCode == Int(kVK_Option) || keyCode == Int(kVK_RightOption) {
+                isDown = event.flags.contains(.maskAlternate)
+            } else if keyCode == Int(kVK_Command) || keyCode == Int(kVK_RightCommand) {
+                isDown = event.flags.contains(.maskCommand)
+            } else if keyCode == Int(kVK_Control) || keyCode == Int(kVK_RightControl) {
+                isDown = event.flags.contains(.maskControl)
+            } else if keyCode == Int(kVK_CapsLock) {
+                isDown = event.flags.contains(.maskAlphaShift)
+            } else {
+                return Unmanaged.passUnretained(event)
+            }
+
+            if isDown {
+                if !isArmed {
+                    isArmed = true
+                    onKeyDown?()
+                }
+                return nil
+            } else {
+                if isArmed {
+                    isArmed = false
+                    onKeyUp?()
+                    return nil
+                }
+                return Unmanaged.passUnretained(event)
+            }
+
         case .keyDown:
             // Require the exact modifier combo so ordinary presses pass through.
             let relevantMods: CGEventFlags = [.maskCommand, .maskAlternate, .maskControl, .maskShift]

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-21
+
+### Changed
+
+- **Default dictation shortcut is now `Fn` (Function / Globe key):**
+  Switched the default shortcut from ⌥Space to the native `Fn` key, mirroring
+  macOS dictation. Full support for capturing standalone `Fn` and modifier
+  events in `flagsChanged`, with automated migration for existing installs.
+
 ## [0.3.2] - 2026-11-21
 
 ### Added

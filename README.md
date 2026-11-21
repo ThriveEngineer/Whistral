@@ -15,7 +15,7 @@ No audio, text, or telemetry ever leaves your Mac.
 
 ## Features
 
-- **Push-to-talk or toggle dictation** — a global shortcut (default ⌥Space)
+- **Push-to-talk or toggle dictation** — a global shortcut (default Fn)
   works system-wide, in any app.
 - **Multilingual Smart Correction & Cross-Sentence Resolution** — uses Apple's
   on-device Foundation Model to eliminate fillers (*uh*, *um*, *like* / *äh*, *ähm* /

@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import Foundation
 import SwiftUI
@@ -93,10 +94,10 @@ final class SettingsStore: ObservableObject {
 
     // MARK: - Values
 
-    @Published var hotkeyCode: UInt32 = 49 {
+    @Published var hotkeyCode: UInt32 = UInt32(kVK_Function) {
         didSet { defaults.set(Int(hotkeyCode), forKey: Key.hotkeyKeyCode); objectWillChange.send() }
     }
-    @Published var hotkeyModifiers: UInt64 = UInt64(CGEventFlags.maskAlternate.rawValue) {
+    @Published var hotkeyModifiers: UInt64 = 0 {
         didSet { defaults.set(Int(hotkeyModifiers), forKey: Key.hotkeyModifiers); objectWillChange.send() }
     }
     @Published var triggerMode: TriggerMode = .hold {
@@ -157,9 +158,20 @@ final class SettingsStore: ObservableObject {
     // MARK: - Restore
 
     func load() {
-        let defaultMods: UInt64 = CGEventFlags.maskAlternate.rawValue
-        hotkeyCode = UInt32(defaults.object(forKey: Key.hotkeyKeyCode) as? Int ?? 49) // Space
-        hotkeyModifiers = UInt64(defaults.object(forKey: Key.hotkeyModifiers) as? Int ?? Int(defaultMods))
+        if let storedCode = defaults.object(forKey: Key.hotkeyKeyCode) as? Int,
+           let storedMods = defaults.object(forKey: Key.hotkeyModifiers) as? Int {
+            if storedCode == 49 && storedMods == Int(CGEventFlags.maskAlternate.rawValue) {
+                // Migrate previous default (⌥Space) to new default (Fn)
+                hotkeyCode = UInt32(kVK_Function)
+                hotkeyModifiers = 0
+            } else {
+                hotkeyCode = UInt32(storedCode)
+                hotkeyModifiers = UInt64(storedMods)
+            }
+        } else {
+            hotkeyCode = UInt32(kVK_Function)
+            hotkeyModifiers = 0
+        }
         triggerMode = (defaults.string(forKey: Key.triggerMode)).flatMap(TriggerMode.init) ?? .hold
         autoInsert = defaults.object(forKey: Key.autoInsert) as? Bool ?? true
         insertionMethod = (defaults.string(forKey: Key.insertionMethod)).flatMap(InsertionMethod.init) ?? .clipboard

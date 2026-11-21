@@ -263,7 +263,7 @@ private struct WelcomeStep: View {
             BulletRow(systemImage: "waveform",
                       title: "Voxtral speech-to-text",
                       detail: "Realtime streaming dictation powered by Mistral's Voxtral Mini 4B on Apple Silicon MLX. Recognizes 13 languages.")
-            BulletRow(systemImage: "sparkles",
+            BulletRow(systemImage: "broom.fill",
                       title: "Smart on-device correction",
                       detail: "Apple Foundation Models clean up fillers (uh, um...), fix spoken self-corrections ('meet at 10, sorry 11am' -> '11am'), and polish grammar.")
             BulletRow(systemImage: "lock.shield",
@@ -272,6 +272,9 @@ private struct WelcomeStep: View {
             BulletRow(systemImage: "keyboard",
                       title: "Global dictation shortcut",
                       detail: "Hold \(AppModel.shared.settings.hotkeyDisplay) while you speak, and release to insert clean text directly into any focused app.")
+            BulletRow(systemImage: "water.waves",
+                      title: "Fluid activation & minimal HUD",
+                      detail: "A subtle water-like glow ripples along your screen edge to confirm listening, with a minimal status pill at the bottom of the screen.")
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .contain)
@@ -387,7 +390,7 @@ private struct FinishStep: View {
             BulletRow(systemImage: "keyboard",
                       title: "Try it now",
                       detail: "Click into any text field, hold \(AppModel.shared.settings.hotkeyDisplay), speak naturally, and release.")
-            BulletRow(systemImage: "sparkles",
+            BulletRow(systemImage: "broom.fill",
                       title: "Smart Correction is active",
                       detail: "Filler words and mid-sentence corrections are resolved automatically. You can toggle or tune Speed vs Quality in Settings.")
             BulletRow(systemImage: "menubar.rectangle",

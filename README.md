@@ -13,34 +13,64 @@ using. Powered by Mistral's [Voxtral Mini 4B Realtime](https://huggingface.co/mi
 speech model running **on-device** via [MLX](https://github.com/ml-explore/mlx).
 No audio, text, or telemetry ever leaves your Mac.
 
+---
+
+## Installation
+
+Choose whichever installation method fits your workflow best:
+
+### Option 1: Via Homebrew Cask (Recommended)
+
+Install and receive automatic updates through Homebrew:
+
+```sh
+brew tap ThriveEngineer/whistral https://github.com/ThriveEngineer/Whistral
+brew install --cask whistral
+```
+
+To update in the future:
+```sh
+brew upgrade --cask whistral
+```
+
+### Option 2: Direct Download (Apple Notarized)
+
+Download the pre-built, notarized release archive directly:
+
+1. Download **[Whistral-0.3.3.zip](https://github.com/ThriveEngineer/Whistral/releases/latest/download/Whistral-0.3.3.zip)** from [GitHub Releases](https://github.com/ThriveEngineer/Whistral/releases/latest).
+2. Unpack the zip archive and drag `Whistral.app` into your `/Applications` folder.
+3. Launch Whistral. *(Because the app is officially signed with an Apple Developer ID and notarized by Apple's Notary Service, Gatekeeper allows it to launch immediately with zero security blocks).*
+
+### Option 3: Build from Source
+
+Build the latest development version locally using Xcode:
+
+```sh
+git clone https://github.com/ThriveEngineer/Whistral.git
+cd Whistral
+xcodebuild -project Whistral.xcodeproj -scheme Whistral \
+  -configuration Release -destination "platform=macOS,arch=arm64" build
+```
+
+The resulting `Whistral.app` bundle will be located under `build/DerivedData/Build/Products/Release/`.
+
+---
+
 ## Features
 
-- **Push-to-talk or toggle dictation** — a global shortcut (default Fn)
-  works system-wide, in any app.
-- **Multilingual Smart Correction & Cross-Sentence Resolution** — uses Apple's
-  on-device Foundation Model to eliminate fillers (*uh*, *um*, *like* / *äh*, *ähm* /
-  *eh*, *este* / *يعني*), accurately resolve cross-sentence self-corrections
-  (e.g. *"meet at 10, sorry I meant 11am"* → *"meet at 11am"*, *"Können wir uns morgen treffen? Nein warte, übermorgen"* → *"Können wir uns übermorgen treffen?"*),
-  while preserving real intent (apologies, additions, and intentional phrasing).
-- **Speed vs. Quality presets** — choose between Speed (Fast) and Quality
-  (Accurate) for both speech recognition lookahead and LLM post-processing.
-- **In-app update checking** — automatically detects new releases via GitHub
-  Releases in the background, surfacing a one-click download button in the menu
-  bar and Settings.
-- **Completely local & private** — speech recognition (Voxtral on MLX) and smart correction
-  (Apple Foundation Model) run 100% on your Mac; audio is never uploaded.
-- **Apple HIG-native borderless HUD** — a lightweight, non-intrusive floating
-  overlay near your cursor shows live audio levels and streaming text using native
-  macOS materials, typography, and standard system controls.
-- **13 languages** — Voxtral's multilingual ASR and the smart corrector seamlessly
-  process English, German, Spanish, French, Italian, Portuguese, Arabic, Dutch,
-  Korean, Japanese, Russian, Chinese, and Turkish.
-- **Smart insert** — transcribed text lands in the focused text field via a
-  paste that briefly borrows, then restores, your clipboard; a synthetic
-  keystroke mode is available for apps that dislike synthetic pastes.
-- **Native & unobtrusive** — a menu-bar app that follows Apple's Human
-  Interface Guidelines: non-activating panels, passive status feedback,
-  proper permissions flow with purpose strings.
+- **Native `Fn` dictation shortcut** — tap or hold the `Fn` (Function / Globe 🌐) key to dictate system-wide in any application. Re-recordable to any key combination in Settings.
+- **Fluid bottom-edge activation glow** — when voice detection activates, a luminous water-like ripple in your macOS System Settings accent color gently waves along the bottom edge of your screen for 3 seconds before dissolving. Completely click-transparent (`ignoresMouseEvents`), so it never blocks your Dock or apps.
+- **Compact bottom-center status pill** — a minimal, non-intrusive floating indicator at the bottom center of your display:
+  - 🎙️ **Listening:** animated real-time 5-bar audio waveform.
+  - ⏳ **Transcribing:** smooth CoreAnimation loading spinner (dead-centered).
+  - 🧹 **Cleaning:** dedicated broom clean-up indicator during Apple Intelligence self-correction.
+- **Multilingual Smart Correction & Cross-Sentence Resolution** — uses Apple's on-device Foundation Model to eliminate fillers (*uh*, *um*, *like* / *äh*, *ähm* / *eh*, *este* / *يعني*), accurately resolve cross-sentence self-corrections (e.g. *"meet at 10, sorry I meant 11am"* → *"meet at 11am"*, *"Können wir uns morgen treffen? Nein warte, übermorgen"* → *"Können wir uns übermorgen treffen?"*), while preserving real intent (apologies, additions, and intentional phrasing).
+- **Speed vs. Quality presets** — choose between Speed (Fast) and Quality (Accurate) for both speech recognition lookahead and LLM post-processing.
+- **In-app update checking** — automatically detects new releases via GitHub Releases in the background, surfacing a one-click download button in the menu bar and Settings.
+- **Completely local & private** — speech recognition (Voxtral on MLX) and smart correction (Apple Foundation Model) run 100% on your Mac; audio is never uploaded.
+- **13 languages** — Voxtral's multilingual ASR and the smart corrector seamlessly process English, German, Spanish, French, Italian, Portuguese, Arabic, Dutch, Korean, Japanese, Russian, Chinese, and Turkish.
+- **Smart insert** — transcribed text lands in the focused text field via a paste that briefly borrows, then restores, your clipboard; a synthetic keystroke mode is available for apps that dislike synthetic pastes.
+- **Apple Notarized** — signed with Developer ID and officially notarized & stapled by Apple for seamless, warning-free Gatekeeper validation.
 
 ## Requirements
 
@@ -57,34 +87,6 @@ to warm up), and dictation finalizes about 0.6 s after you stop speaking. The
 model loads in about 1 s once cached — a first-ever launch downloads the
 ~3.9 GB model first. To rerun the benchmark yourself, see
 [Tests/perf-report.md](Tests/perf-report.md) and `python3 Tests/bench_latency.py`.
-
-## Installation
-
-### Via Homebrew (Recommended)
-
-```sh
-brew tap ThriveEngineer/whistral https://github.com/ThriveEngineer/Whistral
-brew install --cask whistral
-```
-
-### Direct Download
-
-Download the latest release archive (`Whistral-0.3.1.zip`) from [GitHub Releases](https://github.com/ThriveEngineer/Whistral/releases/latest), unpack it, and drag `Whistral.app` to `/Applications`.
-
-## Build from Source
-
-1. Clone this repository.
-2. Open `Whistral.xcodeproj` in Xcode and press **Run**, or build from the
-   command line:
-
-   ```sh
-   xcodebuild -project Whistral.xcodeproj -scheme Whistral \
-     -configuration Debug -destination "platform=macOS,arch=arm64" build
-   ```
-
-3. On first launch, Whistral walks you through onboarding:
-   microphone permission, Accessibility permission (for the global shortcut
-   and text insertion), engine setup, and the model download.
 
 ## How it works
 
@@ -120,7 +122,7 @@ Download the latest release archive (`Whistral-0.3.1.zip`) from [GitHub Releases
 
 | Setting | Description |
 | --- | --- |
-| Dictation shortcut | Re-recordable global hotkey (modifier + key required) |
+| Dictation shortcut | Re-recordable global hotkey (default `Fn`, or custom key) |
 | Push-to-talk / toggle | Hold the key to talk, or press to start/stop |
 | Insert at cursor | Auto-insert the transcription into the focused app (on by default) |
 | Insertion method | Paste (fast, restores your clipboard) or synthetic keystrokes |
@@ -143,12 +145,7 @@ Download the latest release archive (`Whistral-0.3.1.zip`) from [GitHub Releases
   behavior, privacy and permission flow, onboarding, and accessibility —
   per [HIG](https://developer.apple.com/design/human-interface-guidelines/).
 - The app icon (also used as the logo mark above) is authored as an
-  Icon Composer `.icon` document with light, dark, and tinted variants — in
-  light and dark appearance it is a flat seven-bar waveform (amber → red) on
-  a dark background, and the tinted variant renders the bars as monochrome
-  glyphs; the rounded **system squircle** silhouette, corner rounding, and
-  drop shadow you see are applied by macOS itself — the source layers are
-  full-bleed squares.
+  Icon Composer `.icon` document with light, dark, and tinted variants.
 
 ## License
 

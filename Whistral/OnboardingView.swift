@@ -299,16 +299,29 @@ private struct PermissionsStep: View {
             PermissionRow(
                 icon: "accessibility",
                 title: "Accessibility",
-                detail: "Whistral will ask macOS to show the permission prompt. Choose Open System Settings, then enable Whistral under Accessibility so the shortcut and text insertion can work.",
+                detail: "Required to insert the transcription at your cursor. Whistral will ask macOS to show its permission prompt.",
                 status: monitor.accessibility,
                 grantedHint: "Open System Settings if you need to enable it later."
             ) {
                 Permissions.openPrivacyPane("Privacy_Accessibility")
             }
+
+            PermissionRow(
+                icon: "keyboard",
+                title: "Input Monitoring",
+                detail: "Required to detect the global Fn shortcut. Whistral will ask macOS to show its permission prompt.",
+                status: monitor.inputMonitoring,
+                grantedHint: "Open System Settings if you need to change it later."
+            ) {
+                Permissions.openPrivacyPane("Privacy_ListenEvent")
+            }
         }
         .accessibilityElement(children: .contain)
         .onAppear {
             monitor.requestAccessibility()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                monitor.requestInputMonitoring()
+            }
         }
     }
 }

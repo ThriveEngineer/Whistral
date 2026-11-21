@@ -67,19 +67,24 @@ final class AppModel: ObservableObject {
         // Check for updates in the background on launch
         UpdateChecker.shared.checkForUpdates()
 
-        // Detect accessibility while running so the hotkey activates as soon
-        // as the user grants it.
+        // Detect both required permissions while running so the hotkey becomes
+        // active as soon as the user grants them.
         PermissionMonitor.shared.startPolling()
         if settings.hasCompletedOnboarding {
             PermissionMonitor.shared.requestAccessibility()
+            PermissionMonitor.shared.requestInputMonitoring()
         }
-        PermissionMonitor.shared.$accessibility
-            .removeDuplicates()
+        Publishers.CombineLatest(
+            PermissionMonitor.shared.$accessibility,
+            PermissionMonitor.shared.$inputMonitoring
+        )
             .receive(on: RunLoop.main)
-            .sink { [weak self] status in
-                guard let self, status == .granted else { return }
-                if self.settings.hasCompletedOnboarding {
+            .sink { [weak self] accessibility, inputMonitoring in
+                guard let self, self.settings.hasCompletedOnboarding else { return }
+                if accessibility == .granted, inputMonitoring == .granted {
                     self.applyHotkey()
+                } else {
+                    self.hotkey.disable()
                 }
             }
             .store(in: &cancellables)
@@ -96,6 +101,11 @@ final class AppModel: ObservableObject {
     }
 
     func applyHotkey() {
+        guard Permissions.accessibility == .granted,
+              Permissions.inputMonitoring == .granted else {
+            hotkey.disable()
+            return
+        }
         hotkey.onKeyDown = { [weak self] in
             DispatchQueue.main.async { self?.transcriber.hotkeyDown() }
         }
@@ -106,8 +116,11 @@ final class AppModel: ObservableObject {
     }
 
     private func reapplyHotkey() {
-        if Permissions.accessibility == .granted {
+        if Permissions.accessibility == .granted,
+           Permissions.inputMonitoring == .granted {
             applyHotkey()
+        } else {
+            hotkey.disable()
         }
     }
 

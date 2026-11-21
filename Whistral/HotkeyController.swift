@@ -83,8 +83,12 @@ final class HotkeyController {
             callback: callback,
             userInfo: opaque
         ) else {
-            // Typically means Accessibility permission is missing.
-            os_log("CGEventTap creation failed (missing Accessibility permission?)", type: .error)
+            os_log(
+                "CGEventTap creation failed (Accessibility: %{public}@, Input Monitoring: %{public}@)",
+                type: .error,
+                String(describing: Permissions.accessibility),
+                String(describing: Permissions.inputMonitoring)
+            )
             retainedSelf = nil
             Unmanaged<HotkeyController>.fromOpaque(opaque).release()
             return

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-11-21
+
+### Fixed
+
+- **Global shortcut permission detection:** Explicitly request and monitor
+  Input Monitoring access, which macOS requires to observe global keyboard
+  events. Accessibility remains a separate permission needed for text
+  insertion.
+
 ## [0.3.5] - 2026-11-21
 
 ### Added

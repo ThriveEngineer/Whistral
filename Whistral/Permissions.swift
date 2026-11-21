@@ -7,6 +7,7 @@ import ApplicationServices
 import AppKit
 import AVFoundation
 import Combine
+import IOKit.hid
 
 enum PermissionStatus: Equatable {
     case granted
@@ -47,6 +48,25 @@ enum Permissions {
         _ = AXIsProcessTrustedWithOptions(promptOptions)
     }
 
+    // MARK: - Input Monitoring
+
+    /// Required for the global CGEventTap that observes keyboard shortcuts.
+    static var inputMonitoring: PermissionStatus {
+        switch IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) {
+        case kIOHIDAccessTypeGranted:
+            return .granted
+        case kIOHIDAccessTypeDenied:
+            return .denied
+        default:
+            return .notDetermined
+        }
+    }
+
+    /// Asks macOS to request permission to listen for keyboard events.
+    static func requestInputMonitoring() {
+        _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+    }
+
     static func openPrivacyPane(_ path: String) {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(path)") {
             NSWorkspace.shared.open(url)
@@ -61,9 +81,11 @@ final class PermissionMonitor: ObservableObject {
 
     @Published var microphone: PermissionStatus = Permissions.microphone
     @Published var accessibility: PermissionStatus = Permissions.accessibility
+    @Published var inputMonitoring: PermissionStatus = Permissions.inputMonitoring
 
     private var timer: AnyCancellable?
     private var didRequestAccessibility = false
+    private var didRequestInputMonitoring = false
 
     func startPolling() {
         guard timer == nil else { return }
@@ -73,8 +95,13 @@ final class PermissionMonitor: ObservableObject {
                 guard let self else { return }
                 let newMic = Permissions.microphone
                 let newAX = Permissions.accessibility
+                let newInputMonitoring = Permissions.inputMonitoring
                 if newMic != self.microphone { self.objectWillChange.send(); self.microphone = newMic }
                 if newAX != self.accessibility { self.objectWillChange.send(); self.accessibility = newAX }
+                if newInputMonitoring != self.inputMonitoring {
+                    self.objectWillChange.send()
+                    self.inputMonitoring = newInputMonitoring
+                }
             }
     }
 
@@ -89,5 +116,11 @@ final class PermissionMonitor: ObservableObject {
         guard accessibility != .granted, !didRequestAccessibility else { return }
         didRequestAccessibility = true
         Permissions.requestAccessibility()
+    }
+
+    func requestInputMonitoring() {
+        guard inputMonitoring != .granted, !didRequestInputMonitoring else { return }
+        didRequestInputMonitoring = true
+        Permissions.requestInputMonitoring()
     }
 }

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-11-21
+
+### Added
+
+- **Automatic Accessibility permission request:** macOS now displays its
+  Accessibility permission prompt when onboarding reaches the permissions step,
+  or when an existing installation launches without access. Settings explain
+  that this permission is needed for the global shortcut and text insertion.
+
 ## [0.3.4] - 2026-11-21
 
 ### Fixed

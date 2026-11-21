@@ -144,7 +144,7 @@ private struct DictationPane: View {
                 Toggle("Insert transcription at the cursor", isOn: $settings.autoInsert)
                 if permissionMonitor.accessibility != .granted {
                     HStack {
-                        Label("Accessibility access is off — enable it to insert text.", systemImage: "exclamationmark.triangle")
+                        Label("Accessibility access is off — required for the global shortcut and text insertion.", systemImage: "exclamationmark.triangle")
                             .font(.callout)
                             .foregroundStyle(.orange)
                         Spacer()

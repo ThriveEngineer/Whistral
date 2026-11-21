@@ -41,8 +41,8 @@ enum Permissions {
         AXIsProcessTrusted() ? .granted : .denied
     }
 
-    /// Opens System Settings > Privacy & Security > Accessibility.
-    static func openAccessibilitySettings() {
+    /// Asks macOS to show its Accessibility permission prompt.
+    static func requestAccessibility() {
         let promptOptions = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(promptOptions)
     }
@@ -63,6 +63,7 @@ final class PermissionMonitor: ObservableObject {
     @Published var accessibility: PermissionStatus = Permissions.accessibility
 
     private var timer: AnyCancellable?
+    private var didRequestAccessibility = false
 
     func startPolling() {
         guard timer == nil else { return }
@@ -82,5 +83,11 @@ final class PermissionMonitor: ObservableObject {
             self?.objectWillChange.send()
             self?.microphone = status
         }
+    }
+
+    func requestAccessibility() {
+        guard accessibility != .granted, !didRequestAccessibility else { return }
+        didRequestAccessibility = true
+        Permissions.requestAccessibility()
     }
 }

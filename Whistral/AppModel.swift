@@ -70,6 +70,9 @@ final class AppModel: ObservableObject {
         // Detect accessibility while running so the hotkey activates as soon
         // as the user grants it.
         PermissionMonitor.shared.startPolling()
+        if settings.hasCompletedOnboarding {
+            PermissionMonitor.shared.requestAccessibility()
+        }
         PermissionMonitor.shared.$accessibility
             .removeDuplicates()
             .receive(on: RunLoop.main)

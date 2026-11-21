@@ -299,7 +299,7 @@ private struct PermissionsStep: View {
             PermissionRow(
                 icon: "accessibility",
                 title: "Accessibility",
-                detail: "Needed to observe your shortcut and insert the transcription at your cursor. No other use.",
+                detail: "Whistral will ask macOS to show the permission prompt. Choose Open System Settings, then enable Whistral under Accessibility so the shortcut and text insertion can work.",
                 status: monitor.accessibility,
                 grantedHint: "Open System Settings if you need to enable it later."
             ) {
@@ -307,6 +307,9 @@ private struct PermissionsStep: View {
             }
         }
         .accessibilityElement(children: .contain)
+        .onAppear {
+            monitor.requestAccessibility()
+        }
     }
 }
 

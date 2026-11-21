@@ -13,6 +13,8 @@ using. Powered by Mistral's [Voxtral Mini 4B Realtime](https://huggingface.co/mi
 speech model running **on-device** via [MLX](https://github.com/ml-explore/mlx).
 No audio, text, or telemetry ever leaves your Mac.
 
+![Whistral demo screenshot](https://github.com/ThriveEngineer/Whistral/blob/main/Screenshot%202026-11-22%20at%2000.36.57.png?raw=true)
+
 ---
 
 ## Installation

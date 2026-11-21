@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-21
+
+### Added
+
+- **Fluid bottom-edge activation glow:** A subtle ripple in the system accent
+  color appears when voice detection starts.
+
+### Changed
+
+- **Default dictation shortcut is now `Fn` (Function / Globe key).**
+- Onboarding requests Accessibility and Input Monitoring access and explains
+  their separate roles. Whistral monitors both permissions and re-arms the
+  global shortcut when access is granted.
+
+### Fixed
+
+- **Fn shortcut detection:** Track the Fn modifier even when macOS reports a
+  different key code for its `flagsChanged` event.
+
 ## [0.3.6] - 2026-11-21
 
 ### Fixed

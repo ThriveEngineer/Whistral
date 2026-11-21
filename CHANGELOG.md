@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-11-21
+
+### Fixed
+
+- **Fn shortcut detection:** Track the Fn modifier state even when macOS reports
+  it on a `flagsChanged` event with a different key code, while allowing
+  unrelated modifier events to pass through.
+
 ## [0.3.3] - 2026-11-21
 
 ### Changed

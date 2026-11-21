@@ -37,7 +37,7 @@ brew upgrade --cask whistral
 
 Download the pre-built, notarized release archive directly:
 
-1. Download **[Whistral-0.3.3.zip](https://github.com/ThriveEngineer/Whistral/releases/latest/download/Whistral-0.3.3.zip)** from [GitHub Releases](https://github.com/ThriveEngineer/Whistral/releases/latest).
+1. Download **[Whistral-0.3.4.zip](https://github.com/ThriveEngineer/Whistral/releases/latest/download/Whistral-0.3.4.zip)** from [GitHub Releases](https://github.com/ThriveEngineer/Whistral/releases/latest).
 2. Unpack the zip archive and drag `Whistral.app` into your `/Applications` folder.
 3. Launch Whistral. *(Because the app is officially signed with an Apple Developer ID and notarized by Apple's Notary Service, Gatekeeper allows it to launch immediately with zero security blocks).*
 

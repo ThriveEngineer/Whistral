@@ -134,6 +134,23 @@ final class HotkeyController {
         }
 
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+
+        // Some keyboards and macOS configurations report the Fn state change
+        // on a different flagsChanged event. Track the Fn flag independently
+        // of that event's key code, but only consume the actual Fn event.
+        if type == .flagsChanged, hotkey.keyCode == UInt32(kVK_Function) {
+            let isDown = event.flags.contains(.maskSecondaryFn)
+            if isDown != isArmed {
+                isArmed = isDown
+                if isDown {
+                    onKeyDown?()
+                } else {
+                    onKeyUp?()
+                }
+            }
+            return keyCode == Int(kVK_Function) ? nil : Unmanaged.passUnretained(event)
+        }
+
         guard keyCode == Int(hotkey.keyCode) else {
             return Unmanaged.passUnretained(event)
         }
@@ -206,4 +223,3 @@ final class HotkeyController {
         return Unmanaged.passUnretained(event)
     }
 }
-

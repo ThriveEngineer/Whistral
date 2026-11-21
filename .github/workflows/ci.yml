@@ -103,11 +103,22 @@ jobs:
         run: |
           set -euo pipefail
           expected="Whistral-${GITHUB_REF_NAME#v}.zip"
-          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" > release.json
-          asset="$(jq -r --arg name "$expected" '.assets[] | select(.name == $name) | .name' release.json | head -n 1)"
+          asset=""
+          for attempt in {1..12}; do
+            if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" > release.json 2>/dev/null; then
+              asset="$(jq -r --arg name "$expected" '.assets[] | select(.name == $name) | .name' release.json | head -n 1)"
+              if [[ -n "$asset" ]]; then
+                break
+              fi
+            fi
+            echo "Waiting for the $expected asset to be published (attempt $attempt/12)..."
+            sleep 10
+          done
           if [[ -z "$asset" ]]; then
-            echo "::error::The release for $GITHUB_REF_NAME exists but does not carry the $expected asset. Upload build/$expected from an Xcode 27 machine." >&2
-            jq -r '.assets[].name' release.json >&2
+            echo "::error::The release for $GITHUB_REF_NAME was not available with the $expected asset after waiting. Upload build/$expected from an Xcode 27 machine." >&2
+            if [[ -f release.json ]]; then
+              jq -r '.assets[].name' release.json >&2
+            fi
             exit 1
           fi
           echo "verified: $asset present on the release"

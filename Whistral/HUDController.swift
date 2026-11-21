@@ -19,6 +19,8 @@ final class HUDController: NSObject, ObservableObject {
     @Published var micLevel: Float = 0
 
     private var panel: NSPanel?
+    private var glowPanel: NSPanel?
+    private var glowGeneration = 0
     /// Generation counter: bumped on every show; a pending hide animation is
     /// only allowed to order the panel out if the generation hasn't changed.
     private var generation = 0
@@ -43,6 +45,7 @@ final class HUDController: NSObject, ObservableObject {
         phase = .listening
         partialText = ""
         presentPanel(anchorFresh: true)
+        presentWaterGlow()
     }
 
     func update(text: String) {
@@ -65,6 +68,15 @@ final class HUDController: NSObject, ObservableObject {
         micLevel = 0
         generation += 1
         let gen = generation
+        if let glowPanel, glowPanel.isVisible {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.2
+                glowPanel.animator().alphaValue = 0
+            }, completionHandler: {
+                glowPanel.orderOut(nil)
+                glowPanel.alphaValue = 1
+            })
+        }
         guard let panel else { return }
         isFadingOut = true
         NSAnimationContext.runAnimationGroup({ context in
@@ -154,6 +166,59 @@ final class HUDController: NSObject, ObservableObject {
         y = min(max(y, visible.minY + 16), visible.maxY - preferredSize.height - 16)
 
         return NSPoint(x: x, y: y)
+    }
+
+    // MARK: - Fluid bottom-edge glow indicator
+
+    private func presentWaterGlow() {
+        glowGeneration += 1
+        let gen = glowGeneration
+
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { $0.frame.contains(mouse) }
+                     ?? NSScreen.main
+                     ?? NSScreen.screens[0]
+
+        let glowHeight: CGFloat = 70
+        let frame = NSRect(
+            x: screen.frame.minX,
+            y: screen.frame.minY,
+            width: screen.frame.width,
+            height: glowHeight
+        )
+
+        let panel: NSPanel
+        if let existing = glowPanel {
+            panel = existing
+            panel.setFrame(frame, display: false)
+        } else {
+            panel = NSPanel(
+                contentRect: frame,
+                styleMask: [.borderless, .nonactivatingPanel],
+                backing: .buffered,
+                defer: false
+            )
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            panel.hasShadow = false
+            panel.isFloatingPanel = true
+            panel.hidesOnDeactivate = false
+            panel.worksWhenModal = true
+            panel.level = .floating
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+            panel.ignoresMouseEvents = true
+            glowPanel = panel
+        }
+
+        panel.alphaValue = 1
+        let rootView = WaterGlowView(id: gen)
+        panel.contentView = NSHostingView(rootView: rootView)
+        panel.orderFrontRegardless()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.05) { [weak self, weak panel] in
+            guard let self, self.glowGeneration == gen else { return }
+            panel?.orderOut(nil)
+        }
     }
 
     /// Smooth the raw level reported from the audio thread.

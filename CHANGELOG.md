@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-21
+
+### Added
+
+- **Fluid bottom-edge activation glow:** When voice detection starts, a subtle,
+  water-like ripple in the user's macOS system accent color emerges from the
+  bottom edge of the screen (80% opacity at bottom, fading smoothly to 0%
+  above), waving gently for 3 seconds before dissolving. Fully non-interactive
+  (`ignoresMouseEvents`) so it never blocks clicks or interaction with the Dock.
+
 ## [0.3.1] - 2026-11-20
 
 ### Changed

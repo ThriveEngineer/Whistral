@@ -14,7 +14,9 @@ speech model running **on-device** via [MLX](https://github.com/ml-explore/mlx).
 No audio, text, or telemetry ever leaves your Mac.
 
 ![Whistral demo screenshot](https://github.com/ThriveEngineer/Whistral/blob/main/Screenshot%202026-11-22%20at%2000.36.57.png?raw=true)
-
+<a href="https://macpip.com/apps/whistral?ref=badge">
+  <img src="https://macpip.com/badge/whistral.svg" height="58" alt="Listed on MacPip">
+</a>
 ---
 
 ## Installation

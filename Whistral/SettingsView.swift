@@ -493,6 +493,14 @@ private struct AboutPane: View {
             }
             .font(.callout)
 
+            Divider()
+
+            LabeledContent("Desert Ant Labs") {
+                Link("Voz — speech to text on the Neural Engine (selectable in the Engine tab)",
+                     destination: URL(string: "https://desertant.com/models/voz/")!)
+            }
+            .font(.callout)
+
             Spacer()
         }
         .padding(24)

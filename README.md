@@ -9,8 +9,11 @@
 
 An open-source, fully local alternative to Wispr Flow for macOS. Hold a
 shortcut, speak, release — your words are typed into whatever app you're
-using. Powered by Mistral's [Voxtral Mini 4B Realtime](https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602)
-speech model running **on-device** via [MLX](https://github.com/ml-explore/mlx).
+using. Powered by default by [Voz](https://huggingface.co/desert-ant-labs/voz)
+(Desert Ant Labs, 25 languages) running **on-device** on the Apple Neural
+Engine via Core ML — Mistral's [Voxtral Mini 4B Realtime](https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602)
+on [MLX](https://github.com/ml-explore/mlx) remains available as an
+alternative in Settings.
 No audio, text, or telemetry ever leaves your Mac.
 
 ![Whistral demo screenshot](https://github.com/ThriveEngineer/Whistral/blob/main/Screenshot%202026-11-22%20at%2000.36.57.png?raw=true)
@@ -41,7 +44,7 @@ brew upgrade --cask whistral
 
 Download the pre-built, notarized release archive directly:
 
-1. Download **[Whistral-0.4.0.zip](https://github.com/ThriveEngineer/Whistral/releases/latest/download/Whistral-0.4.0.zip)** from [GitHub Releases](https://github.com/ThriveEngineer/Whistral/releases/latest).
+1. Download **[Whistral-0.5.0.zip](https://github.com/ThriveEngineer/Whistral/releases/latest/download/Whistral-0.5.0.zip)** from [GitHub Releases](https://github.com/ThriveEngineer/Whistral/releases/latest).
 2. Unpack the zip archive and drag `Whistral.app` into your `/Applications` folder.
 3. Launch Whistral. *(Because the app is officially signed with an Apple Developer ID and notarized by Apple's Notary Service, Gatekeeper allows it to launch immediately with zero security blocks).*
 
@@ -71,15 +74,16 @@ The resulting `Whistral.app` bundle will be located under `build/DerivedData/Bui
 - **Multilingual Smart Correction & Cross-Sentence Resolution** — uses Apple's on-device Foundation Model to eliminate fillers (*uh*, *um*, *like* / *äh*, *ähm* / *eh*, *este* / *يعني*), accurately resolve cross-sentence self-corrections (e.g. *"meet at 10, sorry I meant 11am"* → *"meet at 11am"*, *"Können wir uns morgen treffen? Nein warte, übermorgen"* → *"Können wir uns übermorgen treffen?"*), while preserving real intent (apologies, additions, and intentional phrasing).
 - **Speed vs. Quality presets** — choose between Speed (Fast) and Quality (Accurate) for both speech recognition lookahead and LLM post-processing.
 - **In-app update checking** — automatically detects new releases via GitHub Releases in the background, surfacing a one-click download button in the menu bar and Settings.
-- **Completely local & private** — speech recognition (Voxtral on MLX) and smart correction (Apple Foundation Model) run 100% on your Mac; audio is never uploaded.
-- **13 languages** — Voxtral's multilingual ASR and the smart corrector seamlessly process English, German, Spanish, French, Italian, Portuguese, Arabic, Dutch, Korean, Japanese, Russian, Chinese, and Turkish.
+- **Completely local & private** — speech recognition (Voz on the Neural Engine, or Voxtral on MLX) and smart correction (Apple Foundation Model) run 100% on your Mac; audio is never uploaded.
+- **25 languages with the default Voz model** (Voxtral covers 13) — the smart corrector seamlessly processes English, German, Spanish, French, Italian, Portuguese, Arabic, Dutch, Korean, Japanese, Russian, Chinese, and Turkish.
 - **Smart insert** — transcribed text lands in the focused text field via a paste that briefly borrows, then restores, your clipboard; a synthetic keystroke mode is available for apps that dislike synthetic pastes.
 - **Apple Notarized** — signed with Developer ID and officially notarized & stapled by Apple for seamless, warning-free Gatekeeper validation.
 
 ## Requirements
 
 - Apple Silicon Mac (M1 or later), macOS 27.2 or newer
-- ~3.9 GB free disk space for the model (downloaded once, on your first run)
+- ~337 MB free disk space for the default Voz model (downloaded once, on first
+  use); the Voxtral models need ~3.9–8.6 GB
 
 ## Performance
 
@@ -94,14 +98,19 @@ model loads in about 1 s once cached — a first-ever launch downloads the
 
 ## How it works
 
-- The Swift app captures microphone audio with `AVAudioEngine`, converts it
-  to 16 kHz mono, and streams it to a small **Python sidecar**
+- The Swift app captures microphone audio with `AVAudioEngine` and converts
+  it to 16 kHz mono. Both engines speak the same `SpeechEngine` protocol and
+  emit the same event set (`partial`, `segment`, `final`).
+- **Voz (default):** runs in-process through the official
+  [desert-ant-core](https://github.com/Desert-Ant-Labs/desert-ant-core) Swift
+  package — Core ML models on the Neural Engine, downloaded once from
+  Hugging Face, with a live streaming session for partial transcripts.
+- **Voxtral (optional):** audio is streamed to a small **Python sidecar**
   (`Whistral/Resources/Engine/whistral_engine.py`) over a length-prefixed
-  stdin/stdout protocol.
-- The sidecar wraps [voxmlx](https://github.com/awni/voxmlx), an MLX
-  implementation of the streaming Voxtral pipeline, and emits NDJSON events
-  (`partial`, `segment`, `final`) back to Swift.
-- If **Smart Correction** is enabled, the final Voxtral transcript is piped to
+  stdin/stdout protocol. The sidecar wraps [voxmlx](https://github.com/awni/voxmlx),
+  an MLX implementation of the streaming Voxtral pipeline, and emits NDJSON
+  events back to Swift.
+- If **Smart Correction** is enabled, the final transcript is piped to
   Apple's on-device Foundation Model (`FoundationModels` framework). The model
   removes spoken disfluencies, filler words, and resolves self-corrections
   (e.g., *"10am, sorry I meant 11am"* → *"11am"*). The model session is prewarmed
@@ -118,9 +127,10 @@ model loads in about 1 s once cached — a first-ever launch downloads the
   toggled on) and stays in memory.
 - The model weights and the embedded Python engine are stored locally under
   `~/Library/Application Support/Whistral/`.
-- No network calls except the one-time model download from
-  [Hugging Face](https://huggingface.co/mlx-community/Voxtral-Mini-4B-Realtime-6bit)
-  and the background version check to GitHub Releases.
+- No network calls except the one-time model download from Hugging Face
+  ([Voz](https://huggingface.co/desert-ant-labs/voz) by default,
+  [Voxtral](https://huggingface.co/mlx-community/Voxtral-Mini-4B-Realtime-6bit)
+  if selected) and the background version check to GitHub Releases.
 
 ## Settings
 
@@ -138,7 +148,7 @@ model loads in about 1 s once cached — a first-ever launch downloads the
 | Updates | Automatic background update checking and manual Check for Updates |
 | Sound feedback | Subtle system sounds when dictation starts and finishes |
 | Cancel with Esc | Hardwired: pressing Esc cancels the current dictation |
-| Model | Voxtral Mini 4B Realtime — 6-bit (default) or BF16 (original) |
+| Model | Voz (Neural Engine, default) or Voxtral Mini 4B Realtime — 6-bit / BF16 |
 | Launch at login | Register with `SMAppService` |
 
 ## Development
@@ -153,6 +163,9 @@ model loads in about 1 s once cached — a first-ever launch downloads the
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE). The model weights carry their
+Apache License 2.0 — see [LICENSE](LICENSE). The Voxtral weights carry their
 own license from [mistralai](https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602)
-(Apache 2.0); the quantized MLX community port follows the same license.
+(Apache 2.0); the quantized MLX community port follows the same license. The
+default Voz model is NVIDIA Parakeet TDT 0.6B v3 (CC BY 4.0) as converted by
+[Desert Ant Labs](https://huggingface.co/desert-ant-labs/voz) under their
+source-available license.

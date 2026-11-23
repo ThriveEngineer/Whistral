@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-23
+
+### Added
+
+- **Voz by Desert Ant Labs as a fully integrated speech model** — selectable
+  in Settings → Engine → Model. Runs in-process on the Apple Neural Engine via
+  Core ML (official `desert-ant-core` Swift package), with live streaming
+  partials, ~337 MB one-time download, 25 languages.
+- **New engine abstraction** (`SpeechEngine` protocol): the Python/MLX sidecar
+  (Voxtral) and the on-device Core ML engine (Voz) are routed by the selected
+  model ID.
+
+### Changed
+
+- **Default speech model is now Voz (Neural Engine)** for new installs and
+  users who never picked a model. Existing users keep their saved choice;
+  Voxtral Mini 4B Realtime (6-bit / BF16) remains available in the picker.
+- Onboarding window content is scrollable and larger, so the Continue button
+  is always visible; onboarding copy reflects the selectable models.
+
+### Fixed
+
+- Model IDs belonging to another engine (e.g. `voz:…`) can no longer be sent
+  to the Hugging Face loader of the sidecar engine.
+- In-process engines now load their model on a fresh app launch.
+
+
 ## [0.4.0] - 2026-11-21
 
 ### Added

@@ -17,7 +17,10 @@ final class TranscriptionController: NSObject, ObservableObject {
 
     let hud = HUDController()
     let audio = AudioCaptureEngine()
-    let engine: SidecarEngineClient
+    /// The active speech backend (sidecar or on-device Core ML), resolved
+    /// from the selected model ID on every access so switching models in
+    /// Settings takes effect immediately.
+    private var engine: any SpeechEngine { AppModel.shared.activeEngine }
     private let settings: SettingsStore
 
     // MARK: - State
@@ -71,8 +74,7 @@ final class TranscriptionController: NSObject, ObservableObject {
         }
     }
 
-    init(engine: SidecarEngineClient, settings: SettingsStore) {
-        self.engine = engine
+    init(settings: SettingsStore) {
         self.settings = settings
         super.init()
         wireObservers()

@@ -24,26 +24,9 @@ enum EngineState: Equatable {
     case stopped
 }
 
-protocol SidecarEngineClientDelegate: AnyObject {
-    func engineClient(_ client: SidecarEngineClient, didReceiveEvent event: EngineEvent)
-    func engineClient(_ client: SidecarEngineClient, didLog message: String)
-}
-
-enum EngineEvent {
-    case ready
-    case modelState(EngineState)
-    case sessionStarted
-    case partial(index: Int, segmentText: String, text: String)
-    case segment(index: Int, text: String)
-    case final(text: String, token: Int?)
-    case cancelled(token: Int?)
-    case fileTranscript(path: String, text: String)
-    case error(message: String)
-}
-
 final class SidecarEngineClient: NSObject {
 
-    weak var delegate: SidecarEngineClientDelegate?
+    weak var delegate: SpeechEngineDelegate?
 
     // MARK: - Paths
 
@@ -101,7 +84,7 @@ final class SidecarEngineClient: NSObject {
                     guard let self else { return }
                     self.isBootstrapping = false
                     if let error {
-                        self.delegate?.engineClient(self, didReceiveEvent: .modelState(.error(error)))
+                        self.delegate?.speechEngine(self, didReceiveEvent: .modelState(.error(error)))
                     } else {
                         self.startEngine()
                     }
@@ -116,8 +99,8 @@ final class SidecarEngineClient: NSObject {
     private func bootstrap(completion: @escaping (String?) -> Void) {
         guard !isBootstrapping else { return }
         isBootstrapping = true
-        delegate?.engineClient(self, didReceiveEvent: .modelState(.notInstalled))
-        delegate?.engineClient(self, didLog: "Preparing the speech engine (first run only)…")
+        delegate?.speechEngine(self, didReceiveEvent: .modelState(.notInstalled))
+        delegate?.speechEngine(self, didLog: "Preparing the speech engine (first run only)…")
 
         let support = Self.appSupportURL
         let systemPython = "/usr/bin/python3"
@@ -166,7 +149,7 @@ final class SidecarEngineClient: NSObject {
                     return
                 }
 
-                self.delegate?.engineClient(self, didLog: "Installing engine packages…")
+                self.delegate?.speechEngine(self, didLog: "Installing engine packages…")
                 let pip = Process()
                 pip.executableURL = Self.venvPythonURL
                 pip.arguments = ["-m", "pip", "install", "--quiet", "-r", requirements.path]
@@ -189,7 +172,7 @@ final class SidecarEngineClient: NSObject {
 
     private func startEngine() {
         guard let engineScript = Self.engineScriptURL() else {
-            delegate?.engineClient(self, didReceiveEvent: .modelState(.error("Engine script missing from app bundle.")))
+            delegate?.speechEngine(self, didReceiveEvent: .modelState(.error("Engine script missing from app bundle.")))
             return
         }
 
@@ -216,7 +199,7 @@ final class SidecarEngineClient: NSObject {
             guard let self, !data.isEmpty,
                   let text = String(data: data, encoding: .utf8) else { return }
             DispatchQueue.main.async {
-                self.delegate?.engineClient(self, didLog: text.trimmingCharacters(in: .whitespacesAndNewlines))
+                self.delegate?.speechEngine(self, didLog: text.trimmingCharacters(in: .whitespacesAndNewlines))
             }
         }
 
@@ -224,7 +207,7 @@ final class SidecarEngineClient: NSObject {
             try proc.run()
         } catch {
             isBootstrapping = false
-            delegate?.engineClient(self, didReceiveEvent: .modelState(.error("Could not start the engine: \(error.localizedDescription)")))
+            delegate?.speechEngine(self, didReceiveEvent: .modelState(.error("Could not start the engine: \(error.localizedDescription)")))
             return
         }
         // Note: crashRestartCount is deliberately NOT reset here. Resetting at
@@ -238,7 +221,7 @@ final class SidecarEngineClient: NSObject {
         // see writeFrame); FIFO order lands them before any frame write this
         // spawn enqueues afterwards.
         if (proc.standardInput as? Pipe)?.fileHandleForWriting == nil {
-            delegate?.engineClient(self, didReceiveEvent: .modelState(.error("Could not open the engine's input pipe.")))
+            delegate?.speechEngine(self, didReceiveEvent: .modelState(.error("Could not open the engine's input pipe.")))
             return
         }
         let inputPipe = proc.standardInput as? Pipe
@@ -263,25 +246,25 @@ final class SidecarEngineClient: NSObject {
             DispatchQueue.main.async {
                 guard self.delegate != nil else { return }
                 if self.isAppTerminating {
-                    self.delegate?.engineClient(self, didReceiveEvent: .modelState(
+                    self.delegate?.speechEngine(self, didReceiveEvent: .modelState(
                         status == 0 ? .stopped : .error("The speech engine exited (code \(status)).")
                     ))
                     return
                 }
                 if status == 0 {
-                    self.delegate?.engineClient(self, didReceiveEvent: .modelState(.stopped))
+                    self.delegate?.speechEngine(self, didReceiveEvent: .modelState(.stopped))
                 } else {
                     // Restart automatically, with a limited backoff so a
                     // persistently failing engine can't loop forever.
                     self.crashRestartCount += 1
                     if self.crashRestartCount <= 3 {
-                        self.delegate?.engineClient(self, didLog: "Engine exited unexpectedly (code \(status)); restarting…")
-                        self.delegate?.engineClient(self, didReceiveEvent: .modelState(.stopped))
+                        self.delegate?.speechEngine(self, didLog: "Engine exited unexpectedly (code \(status)); restarting…")
+                        self.delegate?.speechEngine(self, didReceiveEvent: .modelState(.stopped))
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                             self.ensureRunning()
                         }
                     } else {
-                        self.delegate?.engineClient(self, didReceiveEvent: .modelState(
+                        self.delegate?.speechEngine(self, didReceiveEvent: .modelState(
                             .error("The speech engine keeps crashing (code \(status)). Try reinstalling it from Settings → Engine.")
                         ))
                     }
@@ -311,14 +294,14 @@ final class SidecarEngineClient: NSObject {
                             if case .modelState(.ready) = event {
                                 self.crashRestartCount = 0
                             }
-                            self.delegate?.engineClient(self, didReceiveEvent: event)
+                            self.delegate?.speechEngine(self, didReceiveEvent: event)
                         }
                     }
                 }
             }
         }
 
-        delegate?.engineClient(self, didReceiveEvent: .ready)
+        delegate?.speechEngine(self, didReceiveEvent: .ready)
     }
 
     static func engineScriptURL(for bundle: Bundle = .main) -> URL? {
@@ -396,7 +379,7 @@ final class SidecarEngineClient: NSObject {
     private func logDroppedFrameOnce() {
         if !dropWarningShown {
             dropWarningShown = true
-            delegate?.engineClient(self, didLog: "Engine is not running; dropped a frame.")
+            delegate?.speechEngine(self, didLog: "Engine is not running; dropped a frame.")
         }
     }
 
@@ -415,10 +398,19 @@ final class SidecarEngineClient: NSObject {
     // MARK: - Commands
 
     func load(modelID: String, temperature: Float = 0.0) {
+        // Model IDs with an engine scheme (e.g. "voz:...") belong to another
+        // backend; they must never reach this engine, whose Hugging Face
+        // loader would reject them. HF repo IDs never contain ':'.
+        if modelID.contains(":") {
+            delegate?.speechEngine(self, didReceiveEvent: .modelState(.error(
+                "Model '\(modelID)' is not a Hugging Face repo ID; it is handled by a different engine."
+            )))
+            return
+        }
         writeCommand(["cmd": "load", "model": modelID, "temperature": temperature])
     }
 
-    func start(delayMs: Int, sessionToken: Int = 0) {
+    func start(delayMs: Int, sessionToken: Int) {
         writeCommand(["cmd": "start", "delayMs": delayMs, "token": sessionToken])
     }
 
@@ -505,4 +497,17 @@ final class SidecarEngineClient: NSObject {
     }
 
     static let modelDefaultName = "Voxtral Mini 4B Realtime"
+}
+
+// MARK: - SpeechEngine conformance
+
+extension SidecarEngineClient: SpeechEngine {
+    // The concrete methods carry extra defaulted parameters, so they don't
+    // satisfy the protocol witnesses directly — forward explicitly.
+    func load(modelID: String) {
+        load(modelID: modelID, temperature: 0.0)
+    }
+
+    // `start(delayMs:sessionToken:)`, `stop()`, `cancel()` and
+    // `sendAudio(samples:)` match the protocol witnesses as-is.
 }

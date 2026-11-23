@@ -57,17 +57,21 @@ struct OnboardingView: View {
 
             Divider()
 
-            // Content
-            VStack {
-                switch model.step {
-                case .welcome: WelcomeStep(model: model)
-                case .permissions: PermissionsStep(model: model)
-                case .engine: EngineStep(model: model)
-                case .model: ModelStep(model: model)
-                case .finish: FinishStep(model: model)
+            // Content — scrollable so tall steps can never push the footer
+            // (with the Continue button) out of the fixed-size window.
+            ScrollView {
+                VStack {
+                    switch model.step {
+                    case .welcome: WelcomeStep(model: model)
+                    case .permissions: PermissionsStep(model: model)
+                    case .engine: EngineStep(model: model)
+                    case .model: ModelStep(model: model)
+                    case .finish: FinishStep(model: model)
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .top)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(24)
 
             Divider()
@@ -91,7 +95,7 @@ struct OnboardingView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
         }
-        .frame(width: 520, height: 480)
+        .frame(width: 540, height: 560)
         .onAppear { model.onAppear() }
     }
 }
@@ -129,6 +133,7 @@ final class OnboardingModel: ObservableObject {
         let app = AppModel.shared
 
         app.engineClient.delegate = OnboardingEngineTap.shared
+        app.vozEngine.delegate = OnboardingEngineTap.shared
         OnboardingEngineTap.shared.model = self
 
         app.$engineState
@@ -202,7 +207,7 @@ final class OnboardingModel: ObservableObject {
             step = .model
         case .model:
             if !modelReady {
-                AppModel.shared.engineClient.load(modelID: AppModel.shared.settings.modelID)
+                AppModel.shared.activeEngine.load(modelID: AppModel.shared.settings.modelID)
             }
             step = .finish
         case .finish:
@@ -213,6 +218,7 @@ final class OnboardingModel: ObservableObject {
     func finish() {
         AppModel.shared.settings.hasCompletedOnboarding = true
         AppModel.shared.engineClient.delegate = AppModel.shared
+        AppModel.shared.vozEngine.delegate = AppModel.shared
         AppModel.shared.enterNormalMode()
         AppModel.shared.showOnboarding = false
         OnboardingWindowController.shared.close()
@@ -220,14 +226,14 @@ final class OnboardingModel: ObservableObject {
 }
 
 /// Temporary engine tap that feeds setup logs and progress into onboarding.
-final class OnboardingEngineTap: SidecarEngineClientDelegate {
+final class OnboardingEngineTap: SpeechEngineDelegate {
 
     static let shared = OnboardingEngineTap()
     weak var model: OnboardingModel?
 
-    func engineClient(_ client: SidecarEngineClient, didReceiveEvent event: EngineEvent) {
+    func speechEngine(_ engine: any SpeechEngine, didReceiveEvent event: EngineEvent) {
         DispatchQueue.main.async {
-            AppModel.shared.engineClient(AppModel.shared.engineClient, didReceiveEvent: event)
+            AppModel.shared.speechEngine(engine, didReceiveEvent: event)
             guard let model = self.model else { return }
             switch event {
             case .modelState(.downloadingModel(let received, let total)):
@@ -244,7 +250,7 @@ final class OnboardingEngineTap: SidecarEngineClientDelegate {
         }
     }
 
-    func engineClient(_ client: SidecarEngineClient, didLog message: String) {
+    func speechEngine(_ engine: any SpeechEngine, didLog message: String) {
         DispatchQueue.main.async {
             guard let model = self.model else { return }
             model.engineLog.append(message)
@@ -261,8 +267,8 @@ private struct WelcomeStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             BulletRow(systemImage: "waveform",
-                      title: "Voxtral speech-to-text",
-                      detail: "Realtime streaming dictation powered by Mistral's Voxtral Mini 4B on Apple Silicon MLX. Recognizes 13 languages.")
+                      title: "On-device speech-to-text",
+                      detail: "Realtime streaming dictation running entirely on your Mac's Neural Engine (Voz by Desert Ant Labs, 25 languages). Voxtral models are also available in Settings.")
             BulletRow(systemImage: "broom.fill",
                       title: "Smart on-device correction",
                       detail: "Apple Foundation Models clean up fillers (uh, um...), fix spoken self-corrections ('meet at 10, sorry 11am' -> '11am'), and polish grammar.")
@@ -376,7 +382,7 @@ private struct ModelStep: View {
             } else if model.downloadStarted && model.downloadTotal > 0 {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text("Downloading Voxtral Mini 4B Realtime")
+                        Text("Downloading " + (AppModel.availableModels.first { $0.id == AppModel.shared.settings.modelID }?.label ?? "speech model"))
                         Spacer()
                         Text(ByteCountFormatter.string(fromByteCount: Int64(model.downloadReceived), countStyle: .file)
                              + " of "
@@ -388,7 +394,7 @@ private struct ModelStep: View {
                 }
             } else {
                 Button("Start Download") {
-                    AppModel.shared.engineClient.load(modelID: AppModel.shared.settings.modelID)
+                    AppModel.shared.activeEngine.load(modelID: AppModel.shared.settings.modelID)
                 }
                 .controlSize(.large)
             }

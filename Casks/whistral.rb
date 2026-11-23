@@ -1,10 +1,10 @@
 cask "whistral" do
-  version "0.4.0"
-  sha256 "4c874fb25c19f449ec49e037f70aa6dccb41d9d6afad8b7b8bfa0297d4fea1dd"
+  version "0.5.0"
+  sha256 "3cd82ef05a279ee6dec24a25fcfc294e0de84d6b3810d853d192eac7ec790bc1"
 
   url "https://github.com/ThriveEngineer/Whistral/releases/download/v#{version}/Whistral-#{version}.zip"
   name "Whistral"
-  desc "Local, private dictation powered by Whisper and Apple Intelligence"
+  desc "Local, private dictation powered by on-device speech models and Apple Intelligence"
   homepage "https://github.com/ThriveEngineer/Whistral"
 
   livecheck do

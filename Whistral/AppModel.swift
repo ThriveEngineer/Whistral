@@ -17,7 +17,10 @@ final class AppModel: ObservableObject {
 
     static let shared = AppModel()
 
-    static let defaultModelID = "mlx-community/Voxtral-Mini-4B-Realtime-6bit"
+    /// Default speech model for new installs (and users who never picked one).
+    /// Existing users keep their saved choice; the picker order still leads
+    /// with the Voxtral builds.
+    static let defaultModelID = VozEngineClient.modelID
 
     /// Available quantizations offered by mlx-community, lightest first.
     /// Note: only repos in voxmlx-native converted format (config.json with a
@@ -26,14 +29,24 @@ final class AppModel: ObservableObject {
     static let availableModels: [(id: String, label: String, detail: String)] = [
         ("mlx-community/Voxtral-Mini-4B-Realtime-6bit", "Voxtral Mini 4B Realtime — 6-bit", "Recommended, ~3.9 GB download"),
         ("mistralai/Voxtral-Mini-4B-Realtime-2602", "Voxtral Mini 4B Realtime — BF16 (original)", "Highest quality, ~8.6 GB download"),
+        (VozEngineClient.modelID, VozEngineClient.displayName, "On-device Core ML on the Neural Engine, ~337 MB download"),
     ]
 
     let settings = SettingsStore.shared
     let engineClient = SidecarEngineClient()
+    let vozEngine = VozEngineClient()
+
+    /// The engine that transcribes for the currently selected model.
+    /// Model IDs prefixed with "voz:" route to the on-device Core ML engine;
+    /// everything else goes to the Python/MLX sidecar.
+    var activeEngine: any SpeechEngine {
+        settings.modelID.hasPrefix("voz:") ? vozEngine : engineClient
+    }
+
     private(set) lazy var transcriber: TranscriptionController = makeTranscriber()
 
     private func makeTranscriber() -> TranscriptionController {
-        TranscriptionController(engine: engineClient, settings: settings)
+        TranscriptionController(settings: settings)
     }
     let hotkey = HotkeyController()
 
@@ -94,10 +107,25 @@ final class AppModel: ObservableObject {
         applyHotkey()
         applyLaunchAtLogin()
         ensureEngineRunning()
+        // In-process engines (Voz) never get a sidecar .ready event, so on a
+        // fresh launch nothing else would trigger their model load.
+        if activeEngine !== engineClient {
+            switch engineState {
+            case .loading, .downloadingModel, .ready:
+                break
+            default:
+                engineState = .loading
+                activeEngine.load(modelID: settings.modelID)
+            }
+        }
     }
 
     func ensureEngineRunning() {
-        engineClient.ensureRunning()
+        // The Voz engine runs in-process and needs no bootstrap; only the
+        // Python sidecar has a venv to create and a process to spawn.
+        if activeEngine === engineClient {
+            engineClient.ensureRunning()
+        }
     }
 
     func applyHotkey() {
@@ -141,6 +169,7 @@ final class AppModel: ObservableObject {
 
     private func wireEngineClient() {
         engineClient.delegate = self
+        vozEngine.delegate = self
         // Forward setting changes that need re-application.
         Publishers.CombineLatest(settings.$hotkeyCode, settings.$hotkeyModifiers)
             .dropFirst()
@@ -158,13 +187,10 @@ final class AppModel: ObservableObject {
             .removeDuplicates()
             .sink { [weak self] modelID in
                 guard let self else { return }
-                switch self.engineState {
-                case .loading, .downloadingModel:
-                    return
-                default:
-                    // (Re)load the newly selected model in the background.
-                    self.engineClient.load(modelID: modelID)
-                }
+                // (Re)load the newly selected model in the background. Both
+                // engines no-op when their current model is already loaded or
+                // loading, so no in-progress guard is needed here.
+                self.activeEngine.load(modelID: modelID)
             }
             .store(in: &cancellables)
 
@@ -202,11 +228,11 @@ final class AppModel: ObservableObject {
     }
 }
 
-// MARK: - Engine client delegate
+// MARK: - Engine delegate
 
-extension AppModel: SidecarEngineClientDelegate {
+extension AppModel: SpeechEngineDelegate {
 
-    func engineClient(_ client: SidecarEngineClient, didReceiveEvent event: EngineEvent) {
+    func speechEngine(_ engine: any SpeechEngine, didReceiveEvent event: EngineEvent) {
         switch event {
         case .modelState(let state):
             engineState = state
@@ -235,7 +261,7 @@ extension AppModel: SidecarEngineClientDelegate {
                 break
             default:
                 engineState = .loading
-                engineClient.load(modelID: settings.modelID)
+                activeEngine.load(modelID: settings.modelID)
             }
 
         case .fileTranscript:
@@ -243,7 +269,7 @@ extension AppModel: SidecarEngineClientDelegate {
         }
     }
 
-    func engineClient(_ client: SidecarEngineClient, didLog message: String) {
+    func speechEngine(_ engine: any SpeechEngine, didLog message: String) {
         #if DEBUG
         print("[engine]", message)
         #endif
